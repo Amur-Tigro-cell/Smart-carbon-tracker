@@ -26,6 +26,10 @@
       <input type="text" id="globalSearch" placeholder="Search activities…" autocomplete="off" />
     </div>
     <div class="topbar-actions">
+      <button class="topbar-btn topbar-theme-btn" id="themeToggle" title="Switch theme" aria-label="Switch theme" aria-pressed="false">
+        <span id="themeToggleIcon">🌙</span>
+        <span id="themeToggleText">Dark</span>
+      </button>
       <button class="topbar-btn" id="resetAll" title="Reset all data">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4.64"/></svg>
         Reset
@@ -58,6 +62,10 @@
         <button class="sidebar-btn" data-section="tips">
           <span class="sbtn-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" width="18" height="18"><path d="M12 2a7 7 0 0 1 5 11.9V17a1 1 0 0 1-1 1H8a1 1 0 0 1-1-1v-3.1A7 7 0 0 1 12 2z"/><path d="M9 21h6"/></svg></span>
           <span class="sbtn-label">Eco Tips</span>
+        </button>
+        <button class="sidebar-btn" data-section="report">
+          <span class="sbtn-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" width="18" height="18"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg></span>
+          <span class="sbtn-label">Report</span>
         </button>
       </nav>
       <div class="sidebar-footer">
@@ -155,6 +163,43 @@
           </div>
         </div>
 
+        <!-- Monthly Goal -->
+        <div class="card goal-card">
+          <div class="card-hdr">
+            <div>
+              <h3 class="card-title">🎯 Monthly CO₂ Goal</h3>
+              <p class="card-desc">Set a personal reduction target for this calendar month</p>
+            </div>
+            <div class="goal-status-pill" id="goalStatusPill">No goal set</div>
+          </div>
+          <div class="goal-set-row">
+            <input type="number" id="goalInput" min="1" max="9999" step="1" placeholder="e.g. 100" />
+            <span class="goal-unit">kg CO₂e / month</span>
+            <button class="btn btn-primary goal-set-btn" id="goalSetBtn">Set Goal</button>
+          </div>
+          <div class="goal-presets">
+            <span class="goal-preset-lbl">Quick set:</span>
+            <button class="goal-preset-btn" data-val="80">80 kg</button>
+            <button class="goal-preset-btn" data-val="100">100 kg</button>
+            <button class="goal-preset-btn" data-val="125">125 kg <span class="goal-preset-tag">Paris</span></button>
+            <button class="goal-preset-btn" data-val="150">150 kg</button>
+          </div>
+          <div class="goal-progress-section" id="goalProgressSection" style="display:none">
+            <div class="goal-bar-row">
+              <div class="goal-track"><div class="goal-fill" id="goalFill" style="width:0%"></div></div>
+              <span class="goal-pct" id="goalPct">0%</span>
+            </div>
+            <div class="goal-stats-row">
+              <span class="goal-stat" id="goalStatUsed"></span>
+              <span class="goal-stat-sep">·</span>
+              <span class="goal-stat" id="goalStatRemain"></span>
+              <span class="goal-stat-sep">·</span>
+              <span class="goal-stat" id="goalStatTarget"></span>
+            </div>
+            <p class="goal-msg" id="goalMsg"></p>
+          </div>
+        </div>
+
         <!-- Charts -->
         <div class="charts-row">
           <div class="card chart-card">
@@ -211,6 +256,59 @@
           </div>
         </div>
 
+        <div class="card compare-card">
+          <div class="card-hdr">
+            <div><h3 class="card-title">Global Average Comparison</h3><p class="card-desc">How your current monthly emissions compare with the world average (166 kg CO₂e)</p></div>
+            <div class="compare-pill" id="comparePill">No data yet</div>
+          </div>
+          <div class="compare-values-row">
+            <span class="compare-val">You: <strong id="compareYourVal">0.0 kg</strong></span>
+            <span class="compare-val">World Avg: <strong>166.0 kg</strong></span>
+          </div>
+          <div class="compare-track-wrap">
+            <div class="compare-track"><div class="compare-fill" id="compareBar" style="width:0%"></div></div>
+            <span class="compare-pct" id="comparePct">0%</span>
+          </div>
+          <p class="compare-msg" id="compareMsg">Log activities to start comparison.</p>
+        </div>
+
+        <div class="card badges-card">
+          <div class="card-hdr">
+            <div><h3 class="card-title">Achievement Badges</h3><p class="card-desc">Unlock badges by reducing your monthly emissions over time</p></div>
+            <div class="badge-summary-pill" id="badgeSummary">0 / 3 unlocked</div>
+          </div>
+          <div class="badges-grid" id="badgesGrid">
+            <div class="badge-item locked" id="badgeBeginner">
+              <div class="badge-icon">🌱</div>
+              <div class="badge-info">
+                <div class="badge-title">Eco Beginner</div>
+                <div class="badge-rule">Unlock when any monthly reduction is achieved</div>
+              </div>
+              <div class="badge-state" id="badgeBeginnerState">Locked</div>
+            </div>
+            <div class="badge-item locked" id="badgeProtector">
+              <div class="badge-icon">🛡️</div>
+              <div class="badge-info">
+                <div class="badge-title">Climate Protector</div>
+                <div class="badge-rule">Unlock with at least 10% month-over-month reduction</div>
+              </div>
+              <div class="badge-state" id="badgeProtectorState">Locked</div>
+            </div>
+            <div class="badge-item locked" id="badgeHero">
+              <div class="badge-icon">🏆</div>
+              <div class="badge-info">
+                <div class="badge-title">Sustainability Hero</div>
+                <div class="badge-rule">Unlock with at least 20% month-over-month reduction</div>
+              </div>
+              <div class="badge-state" id="badgeHeroState">Locked</div>
+            </div>
+          </div>
+          <p class="badge-msg" id="badgeMsg">Log data across multiple months to start unlocking badges.</p>
+        </div>
+
+        <!-- Personalised recommendations card -->
+        <div class="card pers-dash-card" id="dashPersonalizedTips" style="display:none"></div>
+
       </section>
 
       <!-- ======= CALCULATOR ======= -->
@@ -223,10 +321,10 @@
           <div class="card calc-card">
             <div class="category-tabs" id="categoryTabs">
               <button class="tab-btn active" data-cat="transport">🚗 Transport</button>
-              <button class="tab-btn" data-cat="energy">⚡ Energy</button>
+              <button class="tab-btn" data-cat="electricity">⚡ Electricity</button>
               <button class="tab-btn" data-cat="food">🍽️ Food</button>
               <button class="tab-btn" data-cat="shopping">🛍️ Shopping</button>
-              <button class="tab-btn" data-cat="waste">🗑️ Waste</button>
+              <button class="tab-btn" data-cat="home_energy">🏠 Home Energy</button>
             </div>
             <!-- Transport -->
             <div class="panel active" id="panel-transport">
@@ -245,19 +343,18 @@
                 <div class="form-group"><label for="transportNote">Note (optional)</label><input type="text" id="transportNote" placeholder="e.g. Commute to work" maxlength="100" /></div>
               </div>
             </div>
-            <!-- Energy -->
-            <div class="panel" id="panel-energy">
-              <div class="form-group"><label for="energyType">Energy Source</label>
-                <select id="energyType">
+            <!-- Electricity -->
+            <div class="panel" id="panel-electricity">
+              <div class="form-group"><label for="electricityType">Electricity Source</label>
+                <select id="electricityType">
                   <option value="electricity_grid">Grid Electricity</option><option value="electricity_solar">Solar Electricity</option>
-                  <option value="natural_gas">Natural Gas</option><option value="heating_oil">Heating Oil</option>
-                  <option value="coal">Coal</option><option value="lpg">LPG / Propane</option>
+                  <option value="renewable_electricity">Renewable Supplier</option>
                 </select>
               </div>
-              <div class="form-group"><label for="energyAmount">Amount (kWh)</label><input type="number" id="energyAmount" min="0" step="0.1" placeholder="e.g. 30" /></div>
+              <div class="form-group"><label for="electricityAmount">Amount (kWh)</label><input type="number" id="electricityAmount" min="0" step="0.1" placeholder="e.g. 30" /></div>
               <div class="form-row">
-                <div class="form-group"><label for="energyDate">Date</label><input type="date" id="energyDate" /></div>
-                <div class="form-group"><label for="energyNote">Note (optional)</label><input type="text" id="energyNote" placeholder="e.g. Monthly electricity bill" maxlength="100" /></div>
+                <div class="form-group"><label for="electricityDate">Date</label><input type="date" id="electricityDate" /></div>
+                <div class="form-group"><label for="electricityNote">Note (optional)</label><input type="text" id="electricityNote" placeholder="e.g. Monthly electricity bill" maxlength="100" /></div>
               </div>
             </div>
             <!-- Food -->
@@ -293,18 +390,19 @@
                 <div class="form-group"><label for="shoppingNote">Note (optional)</label><input type="text" id="shoppingNote" placeholder="e.g. New jacket" maxlength="100" /></div>
               </div>
             </div>
-            <!-- Waste -->
-            <div class="panel" id="panel-waste">
-              <div class="form-group"><label for="wasteType">Waste Type</label>
-                <select id="wasteType">
-                  <option value="general_waste">General Waste (landfill)</option><option value="recycling">Recycling</option>
-                  <option value="composting">Composting</option><option value="food_waste">Food Waste</option>
+            <!-- Home Energy -->
+            <div class="panel" id="panel-home_energy">
+              <div class="form-group"><label for="home_energyType">Home Energy Source</label>
+                <select id="home_energyType">
+                  <option value="natural_gas">Natural Gas</option><option value="heating_oil">Heating Oil</option>
+                  <option value="coal">Coal</option><option value="lpg">LPG / Propane</option>
+                  <option value="district_heating">District Heating</option>
                 </select>
               </div>
-              <div class="form-group"><label for="wasteAmount">Amount (kg)</label><input type="number" id="wasteAmount" min="0" step="0.1" placeholder="e.g. 2" /></div>
+              <div class="form-group"><label for="home_energyAmount">Amount (kWh)</label><input type="number" id="home_energyAmount" min="0" step="0.1" placeholder="e.g. 18" /></div>
               <div class="form-row">
-                <div class="form-group"><label for="wasteDate">Date</label><input type="date" id="wasteDate" /></div>
-                <div class="form-group"><label for="wasteNote">Note (optional)</label><input type="text" id="wasteNote" placeholder="e.g. Weekly bin" maxlength="100" /></div>
+                <div class="form-group"><label for="home_energyDate">Date</label><input type="date" id="home_energyDate" /></div>
+                <div class="form-group"><label for="home_energyNote">Note (optional)</label><input type="text" id="home_energyNote" placeholder="e.g. Evening heating" maxlength="100" /></div>
               </div>
             </div>
             <!-- Result preview -->
@@ -312,6 +410,8 @@
               <div><span class="result-label">Estimated CO₂</span><span class="result-value" id="previewCO2">0.000 kg CO₂e</span></div>
               <div class="result-equiv" id="resultEquiv"></div>
             </div>
+            <!-- Smart tips for this calculation -->
+            <div id="calcTipsPanel" style="display:none"></div>
             <div class="form-actions">
               <button class="btn btn-primary" id="addEntry">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="14" height="14"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
@@ -332,19 +432,23 @@
       <section id="history" class="section">
         <div class="section-header">
           <h1>Activity History</h1>
-          <p class="subtitle">All your logged carbon activities</p>
+          <p class="subtitle">All your logged carbon activities <span class="storage-badge" id="storageBadge">💾 Auto-saved</span></p>
         </div>
         <div class="card">
           <div class="history-toolbar">
             <div class="history-filters">
-              <select id="filterCategory"><option value="all">All Categories</option><option value="transport">Transport</option><option value="energy">Energy</option><option value="food">Food</option><option value="shopping">Shopping</option><option value="waste">Waste</option></select>
+              <select id="filterCategory"><option value="all">All Categories</option><option value="transport">Transport</option><option value="electricity">Electricity</option><option value="food">Food</option><option value="shopping">Shopping</option><option value="home_energy">Home Energy</option></select>
               <select id="filterPeriod"><option value="all">All Time</option><option value="today">Today</option><option value="week">This Week</option><option value="month">This Month</option></select>
+              <select id="sortHistory"><option value="newest">Newest First</option><option value="oldest">Oldest First</option><option value="co2_high">Highest CO₂</option><option value="co2_low">Lowest CO₂</option></select>
               <input type="text" id="searchHistory" placeholder="Search entries…" />
             </div>
-            <div class="history-summary">
-              <span id="historyCount">0 entries</span>
-              <span class="sep-dot"></span>
-              <span id="historyTotal">0.00 kg CO₂e</span>
+            <div class="history-actions">
+              <div class="history-summary">
+                <span id="historyCount">0 entries</span>
+                <span class="sep-dot"></span>
+                <span id="historyTotal">0.00 kg CO₂e</span>
+              </div>
+              <button class="btn btn-ghost export-btn" id="exportCSV" title="Export all activities as CSV">⬇ Export CSV</button>
             </div>
           </div>
           <div class="history-list" id="historyList">
@@ -362,21 +466,45 @@
           <h1>Eco Tips &amp; Actions</h1>
           <p class="subtitle">Practical ways to reduce your carbon footprint</p>
         </div>
+        <!-- Personalised recommendations -->
+        <div id="tipsPersonalizedSection" class="pers-tips-outer" style="display:none"></div>
         <div class="tips-filter">
           <button class="filter-btn active" data-filter="all">All</button>
           <button class="filter-btn" data-filter="transport">🚗 Transport</button>
-          <button class="filter-btn" data-filter="energy">⚡ Energy</button>
+          <button class="filter-btn" data-filter="electricity">⚡ Electricity</button>
           <button class="filter-btn" data-filter="food">🍽️ Food</button>
           <button class="filter-btn" data-filter="shopping">🛍️ Shopping</button>
-          <button class="filter-btn" data-filter="waste">🗑️ Waste</button>
+          <button class="filter-btn" data-filter="home_energy">🏠 Home Energy</button>
         </div>
         <div class="tips-grid" id="tipsGrid"></div>
+      </section>
+
+      <!-- ======= REPORT ======= -->
+      <section id="report" class="section">
+        <div class="section-header">
+          <h1>Monthly Report</h1>
+          <p class="subtitle">Your full carbon footprint summary for any month</p>
+        </div>
+        <div class="card report-controls-card">
+          <div class="report-controls-row">
+            <div class="report-month-wrap">
+              <label class="rpt-label" for="reportMonth">Select Month</label>
+              <select id="reportMonth" class="rpt-month-select"></select>
+            </div>
+            <button class="btn btn-primary rpt-dl-btn" id="downloadReportBtn">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="14" height="14"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              Download PDF
+            </button>
+          </div>
+        </div>
+        <div id="reportContent"></div>
       </section>
 
     </main>
   </div>
 
   <div class="toast" id="toast"></div>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="data.js"></script>
   <script src="app.js"></script>
 </body>

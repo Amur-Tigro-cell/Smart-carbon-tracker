@@ -7,10 +7,17 @@
 /* ─── State ─────────────────────────────────── */
 let entries = [];          // { id, category, type, amount, co2, date, note }
 let activeCategory = 'transport';
+let monthlyGoal = null;    // kg — user-set monthly reduction goal
+let themeMode = 'light';
+let categoryChartInstance = null;
+let timelineChartInstance = null;
 
 /* ─── Init ───────────────────────────────────── */
 document.addEventListener('DOMContentLoaded', () => {
+  initTheme();
   loadFromStorage();
+  loadGoalFromStorage();
+  initChartTheme();
   setDefaultDates();
   setGreetingDate();
   initNav();
@@ -20,9 +27,56 @@ document.addEventListener('DOMContentLoaded', () => {
   initHistory();
   initTips();
   initPresets();
+  initGoal();
+  initReport();
   renderDashboard();
   renderHistory();
 });
+
+/* ─── Theme ─────────────────────────────────── */
+function initTheme() {
+  let saved = null;
+  try { saved = localStorage.getItem('sct_theme'); } catch {}
+  const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+  const initial = saved === 'dark' || saved === 'light' ? saved : (prefersDark ? 'dark' : 'light');
+  applyTheme(initial, false, false);
+
+  const btn = document.getElementById('themeToggle');
+  if (btn) {
+    btn.addEventListener('click', () => {
+      applyTheme(themeMode === 'dark' ? 'light' : 'dark');
+    });
+  }
+}
+
+function applyTheme(theme, persist = true, rerender = true) {
+  themeMode = theme === 'dark' ? 'dark' : 'light';
+  document.body.setAttribute('data-theme', themeMode);
+  syncThemeToggle();
+  if (persist) {
+    try { localStorage.setItem('sct_theme', themeMode); } catch {}
+  }
+  initChartTheme();
+  if (rerender) {
+    const activeTipFilter = document.querySelector('.filter-btn.active')?.dataset.filter || 'all';
+    renderDashboard();
+    renderHistory();
+    renderTips(activeTipFilter);
+    renderReport();
+  }
+}
+
+function syncThemeToggle() {
+  const btn  = document.getElementById('themeToggle');
+  const icon = document.getElementById('themeToggleIcon');
+  const text = document.getElementById('themeToggleText');
+  if (!btn || !icon || !text) return;
+
+  const isDark = themeMode === 'dark';
+  icon.textContent = isDark ? '☀️' : '🌙';
+  text.textContent = isDark ? 'Light' : 'Dark';
+  btn.setAttribute('aria-pressed', isDark ? 'true' : 'false');
+}
 
 /* ─── Storage ────────────────────────────────── */
 function loadFromStorage() {
@@ -35,18 +89,92 @@ function loadFromStorage() {
         entries = parsed.filter(e =>
           typeof e === 'object' && e !== null &&
           ['id','category','type','amount','co2','date'].every(k => k in e)
-        );
+        ).map(normalizeLegacyEntry);
       }
     }
   } catch {
     entries = [];
   }
+  updateStorageBadge();
+}
+
+function normalizeLegacyEntry(entry) {
+  const normalized = { ...entry };
+  if (normalized.category === 'energy') {
+    normalized.category = ['electricity_grid', 'electricity_solar', 'renewable_electricity'].includes(normalized.type)
+      ? 'electricity'
+      : 'home_energy';
+  }
+  return normalized;
 }
 
 function saveToStorage() {
   try {
     localStorage.setItem('sct_entries', JSON.stringify(entries));
+    updateStorageBadge(true);
   } catch { /* storage full or unavailable */ }
+}
+
+function loadGoalFromStorage() {
+  try {
+    const v = localStorage.getItem('sct_goal');
+    monthlyGoal = v !== null ? parseFloat(v) : null;
+    if (!monthlyGoal || monthlyGoal <= 0 || monthlyGoal > 9999) monthlyGoal = null;
+  } catch { monthlyGoal = null; }
+}
+
+function saveGoalToStorage(val) {
+  try { localStorage.setItem('sct_goal', String(val)); } catch {}
+}
+
+function updateStorageBadge(flash = false) {
+  const badge = document.getElementById('storageBadge');
+  if (!badge) return;
+  badge.textContent = entries.length > 0
+    ? `💾 ${entries.length} entr${entries.length === 1 ? 'y' : 'ies'} saved`
+    : '💾 Auto-saved';
+  if (flash) {
+    badge.classList.add('flash');
+    clearTimeout(badge._ft);
+    badge._ft = setTimeout(() => badge.classList.remove('flash'), 800);
+  }
+}
+
+function exportCSV() {
+  if (entries.length === 0) { showToast('No data to export.', 'error'); return; }
+  const headers = ['Date', 'Category', 'Type', 'Amount', 'Unit', 'CO2_kg', 'Note'];
+  const rows = [...entries]
+    .sort((a, b) => b.date.localeCompare(a.date))
+    .map(e => [
+      e.date,
+      e.category,
+      formatTypeLabel(e.category, e.type),
+      e.amount,
+      UNIT_LABELS[e.category] || '',
+      e.co2.toFixed(3),
+      e.note || '',
+    ].map(v => `"${String(v).replace(/"/g, '""')}"`).join(','));
+  const csv = [headers.join(','), ...rows].join('\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'carbon-tracker-' + todayISO() + '.csv';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  showToast('Data exported as CSV ✓');
+}
+
+function initChartTheme() {
+  if (!window.Chart) return;
+  const cs = getComputedStyle(document.body);
+  const chartText = cs.getPropertyValue('--text-500').trim() || '#64748b';
+  const chartBorder = cs.getPropertyValue('--border').trim() || '#e2e8f0';
+  Chart.defaults.font.family = 'Inter, -apple-system, BlinkMacSystemFont, sans-serif';
+  Chart.defaults.color = chartText;
+  Chart.defaults.borderColor = chartBorder;
 }
 
 /* ─── Helpers ────────────────────────────────── */
@@ -106,7 +234,7 @@ function showToast(msg, type = '') {
 }
 
 function setDefaultDates() {
-  ['transportDate','energyDate','foodDate','shoppingDate','wasteDate'].forEach(id => {
+  ['transportDate','electricityDate','foodDate','shoppingDate','home_energyDate'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.value = todayISO();
   });
@@ -132,6 +260,7 @@ function initNav() {
       document.getElementById(target).classList.add('active');
       if (target === 'dashboard') renderDashboard();
       if (target === 'history')   renderHistory();
+      if (target === 'report')    renderReport();
     });
   });
 
@@ -178,10 +307,10 @@ function initCategoryTabs() {
 function initCalculator() {
   // Live preview on input change
   ['transportType','transportDist',
-   'energyType','energyAmount',
+   'electricityType','electricityAmount',
    'foodType','foodAmount',
    'shoppingType','shoppingAmount',
-   'wasteType','wasteAmount'].forEach(id => {
+   'home_energyType','home_energyAmount'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.addEventListener('input', updatePreview);
     if (el) el.addEventListener('change', updatePreview);
@@ -215,6 +344,7 @@ function updatePreview() {
   const kg  = getCO2(vals.category, vals.type, vals.amount);
   document.getElementById('previewCO2').textContent = kg.toFixed(3) + ' kg CO\u2082e';
   document.getElementById('resultEquiv').textContent = co2Equiv(kg);
+  renderCalcTips();
 }
 
 function addEntry() {
@@ -305,6 +435,91 @@ function carbonRatingLabel(kgMonth) {
   if (kgMonth < 166)    return '🟡 B';
   if (kgMonth < 250)    return '🟠 C';
   return '🔴 D';
+}
+
+function evaluateBadgeUnlocks() {
+  const monthTotals = new Map();
+  entries.forEach(e => {
+    const d = new Date(e.date + 'T00:00:00');
+    const key = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+    monthTotals.set(key, (monthTotals.get(key) || 0) + e.co2);
+  });
+
+  const months = Array.from(monthTotals.entries())
+    .map(([key, total]) => {
+      const [y, m] = key.split('-').map(Number);
+      return { year: y, month: m, total };
+    })
+    .sort((a, b) => (a.year - b.year) || (a.month - b.month));
+
+  let bestReductionPct = 0;
+  for (let i = 1; i < months.length; i++) {
+    const prev = months[i - 1].total;
+    const curr = months[i].total;
+    if (prev > 0 && curr < prev) {
+      const pct = ((prev - curr) / prev) * 100;
+      if (pct > bestReductionPct) bestReductionPct = pct;
+    }
+  }
+
+  return {
+    bestReductionPct,
+    hasMonthlyHistory: months.length >= 2,
+    beginner: bestReductionPct > 0,
+    protector: bestReductionPct >= 10,
+    hero: bestReductionPct >= 20,
+  };
+}
+
+function renderBadgeSystem(monthlyTotal, prevMonthTotal) {
+  const summaryEl = document.getElementById('badgeSummary');
+  const msgEl = document.getElementById('badgeMsg');
+  const beginnerEl = document.getElementById('badgeBeginner');
+  const protectorEl = document.getElementById('badgeProtector');
+  const heroEl = document.getElementById('badgeHero');
+  const beginnerState = document.getElementById('badgeBeginnerState');
+  const protectorState = document.getElementById('badgeProtectorState');
+  const heroState = document.getElementById('badgeHeroState');
+  if (!summaryEl || !msgEl || !beginnerEl || !protectorEl || !heroEl || !beginnerState || !protectorState || !heroState) return;
+
+  const badgeData = evaluateBadgeUnlocks();
+  const unlockedCount = [badgeData.beginner, badgeData.protector, badgeData.hero].filter(Boolean).length;
+  summaryEl.textContent = unlockedCount + ' / 3 unlocked';
+
+  const applyState = (wrap, stateEl, unlocked, label) => {
+    wrap.classList.toggle('unlocked', unlocked);
+    wrap.classList.toggle('locked', !unlocked);
+    stateEl.textContent = unlocked ? 'Unlocked' : 'Locked';
+    stateEl.className = 'badge-state ' + (unlocked ? 'ok' : 'no');
+    if (unlocked) stateEl.setAttribute('title', label + ' unlocked');
+    else stateEl.removeAttribute('title');
+  };
+
+  applyState(beginnerEl, beginnerState, badgeData.beginner, 'Eco Beginner');
+  applyState(protectorEl, protectorState, badgeData.protector, 'Climate Protector');
+  applyState(heroEl, heroState, badgeData.hero, 'Sustainability Hero');
+
+  if (!badgeData.hasMonthlyHistory) {
+    msgEl.textContent = 'Need at least two months of data to unlock badges.';
+    return;
+  }
+
+  const currentReductionPct = (prevMonthTotal > 0 && monthlyTotal < prevMonthTotal)
+    ? ((prevMonthTotal - monthlyTotal) / prevMonthTotal) * 100
+    : 0;
+
+  if (currentReductionPct >= 20) {
+    msgEl.textContent = 'Amazing! This month is down ' + currentReductionPct.toFixed(1) + '% from last month. Sustainability Hero earned!';
+  } else if (currentReductionPct >= 10) {
+    msgEl.textContent = 'Great progress: ' + currentReductionPct.toFixed(1) + '% lower than last month. Climate Protector earned!';
+  } else if (currentReductionPct > 0) {
+    msgEl.textContent = 'Nice! You reduced emissions by ' + currentReductionPct.toFixed(1) + '% this month. Eco Beginner earned!';
+  } else {
+    const nextTarget = badgeData.beginner ? (badgeData.protector ? (badgeData.hero ? 0 : 20) : 10) : 0;
+    msgEl.textContent = nextTarget === 0
+      ? 'Keep reducing month-over-month to unlock more badges.'
+      : 'Reduce emissions by ' + nextTarget + '% month-over-month to unlock your next badge.';
+  }
 }
 
 function renderDashboard() {
@@ -413,6 +628,45 @@ function renderDashboard() {
     bs.style.cssText += ';font-size:.72rem;font-weight:600;padding:4px 12px;border-radius:99px;';
   }
 
+  // ── Comparison vs global average ──
+  const GLOBAL_AVG = 166;
+  const cmpYourVal = document.getElementById('compareYourVal');
+  const cmpBar = document.getElementById('compareBar');
+  const cmpPct = document.getElementById('comparePct');
+  const cmpMsg = document.getElementById('compareMsg');
+  const cmpPill = document.getElementById('comparePill');
+  if (cmpYourVal && cmpBar && cmpPct && cmpMsg && cmpPill) {
+    const ratio = (monthlyTotal / GLOBAL_AVG) * 100;
+    const clamped = Math.max(0, Math.min(100, ratio));
+    cmpYourVal.textContent = monthlyTotal.toFixed(1) + ' kg';
+    cmpBar.style.width = clamped.toFixed(1) + '%';
+    cmpPct.textContent = Math.round(ratio) + '%';
+
+    if (monthlyTotal === 0) {
+      cmpBar.style.background = 'linear-gradient(90deg, #94a3b8, #64748b)';
+      cmpPill.textContent = 'No data yet';
+      cmpPill.className = 'compare-pill neutral';
+      cmpMsg.textContent = 'Log activities to start comparison with the global average.';
+    } else if (monthlyTotal < GLOBAL_AVG) {
+      const diff = (GLOBAL_AVG - monthlyTotal).toFixed(1);
+      cmpBar.style.background = 'linear-gradient(90deg, #10b981, #14b8a6)';
+      cmpPill.textContent = 'Below average';
+      cmpPill.className = 'compare-pill good';
+      cmpMsg.textContent = 'Great job. You are ' + diff + ' kg CO₂e below the global monthly average.';
+    } else if (monthlyTotal > GLOBAL_AVG) {
+      const diff = (monthlyTotal - GLOBAL_AVG).toFixed(1);
+      cmpBar.style.background = 'linear-gradient(90deg, #f59e0b, #f97316)';
+      cmpPill.textContent = 'Above average';
+      cmpPill.className = 'compare-pill warn';
+      cmpMsg.textContent = 'You are ' + diff + ' kg CO₂e above the global monthly average. Focus on your top-emission category to reduce it.';
+    } else {
+      cmpBar.style.background = 'linear-gradient(90deg, #3b82f6, #6366f1)';
+      cmpPill.textContent = 'At average';
+      cmpPill.className = 'compare-pill neutral';
+      cmpMsg.textContent = 'You are exactly at the global monthly average.';
+    }
+  }
+
   // ── Trend badge on timeline ──
   const tb = document.getElementById('trendBadge');
   if (tb) { tb.textContent = monthlyTotal > 0 ? monthlyTotal.toFixed(1) + ' kg this month' : ''; }
@@ -423,6 +677,9 @@ function renderDashboard() {
 
   renderCategoryChart(monthlyEntries);
   renderTimelineChart();
+  renderPersonalizedTips('dashPersonalizedTips');
+  renderGoalCard(monthlyTotal);
+  renderBadgeSystem(monthlyTotal, prevMonthTotal);
 }
 
 /* ─── Charts ─────────────────────────────────── */
@@ -431,6 +688,8 @@ function renderCategoryChart(monthly) {
   const emptyEl  = document.getElementById('categoryEmpty');
   const legendEl = document.getElementById('categoryLegend');
 
+  if (!window.Chart || !canvas || !emptyEl || !legendEl) return;
+
   // Aggregate by category
   const totals = {};
   monthly.forEach(e => { totals[e.category] = (totals[e.category] || 0) + e.co2; });
@@ -438,51 +697,69 @@ function renderCategoryChart(monthly) {
   const total  = keys.reduce((s, k) => s + totals[k], 0);
 
   if (total === 0) {
+    if (categoryChartInstance) {
+      categoryChartInstance.destroy();
+      categoryChartInstance = null;
+    }
     canvas.style.display = 'none';
     legendEl.style.display = 'none';
     emptyEl.classList.add('visible');
     return;
   }
+
   canvas.style.display = '';
   legendEl.style.display = '';
   emptyEl.classList.remove('visible');
 
-  const ctx = canvas.getContext('2d');
-  const W = canvas.width  = canvas.offsetWidth  || 180;
-  const H = canvas.height = canvas.offsetHeight || 180;
-  const R = Math.min(W, H) / 2 - 10;
-  const cx = W / 2, cy = H / 2;
+  const labels = keys.map(k => CATEGORY_META[k]?.label || k);
+  const values = keys.map(k => totals[k].toFixed(3));
+  const colors = keys.map(k => CATEGORY_META[k]?.color || '#cbd5e1');
 
-  ctx.clearRect(0, 0, W, H);
+  if (categoryChartInstance) {
+    categoryChartInstance.destroy();
+    categoryChartInstance = null;
+  }
 
-  let startAngle = -Math.PI / 2;
-  keys.forEach(k => {
-    const frac  = totals[k] / total;
-    const angle = frac * 2 * Math.PI;
-    ctx.beginPath();
-    ctx.moveTo(cx, cy);
-    ctx.arc(cx, cy, R, startAngle, startAngle + angle);
-    ctx.closePath();
-    ctx.fillStyle = CATEGORY_META[k]?.color || '#ccc';
-    ctx.fill();
-    startAngle += angle;
+  categoryChartInstance = new Chart(canvas, {
+    type: 'pie',
+    data: {
+      labels,
+      datasets: [{
+        data: values,
+        backgroundColor: colors,
+        borderColor: '#ffffff',
+        borderWidth: 3,
+        hoverBorderWidth: 3,
+        hoverOffset: 10,
+      }],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: {
+        duration: 500,
+        easing: 'easeOutQuart',
+      },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: '#0f172a',
+          titleColor: '#f8fafc',
+          bodyColor: '#e2e8f0',
+          padding: 12,
+          cornerRadius: 10,
+          displayColors: true,
+          callbacks: {
+            label(context) {
+              const value = Number(context.raw || 0);
+              const pct = total > 0 ? ((value / total) * 100).toFixed(1) : '0.0';
+              return `${context.label}: ${value.toFixed(2)} kg (${pct}%)`;
+            },
+          },
+        },
+      },
+    },
   });
-
-  // Center hole (donut)
-  ctx.beginPath();
-  ctx.arc(cx, cy, R * 0.55, 0, 2 * Math.PI);
-  ctx.fillStyle = '#fff';
-  ctx.fill();
-
-  // Center text
-  ctx.fillStyle = '#0f172a';
-  ctx.font = `bold ${Math.round(R * 0.3)}px Inter, sans-serif`;
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillText(total.toFixed(1), cx, cy - 4);
-  ctx.font = `${Math.round(R * 0.18)}px Inter, sans-serif`;
-  ctx.fillStyle = '#6b7280';
-  ctx.fillText('kg CO₂e', cx, cy + R * 0.22);
 
   // Legend
   legendEl.innerHTML = keys.map(k =>
@@ -497,11 +774,18 @@ function renderTimelineChart() {
   const canvas  = document.getElementById('timelineChart');
   const emptyEl = document.getElementById('timelineEmpty');
 
+  if (!window.Chart || !canvas || !emptyEl) return;
+
   if (entries.length === 0) {
+    if (timelineChartInstance) {
+      timelineChartInstance.destroy();
+      timelineChartInstance = null;
+    }
     canvas.style.display = 'none';
     emptyEl.classList.add('visible');
     return;
   }
+
   canvas.style.display = '';
   emptyEl.classList.remove('visible');
 
@@ -513,91 +797,107 @@ function renderTimelineChart() {
     const d = new Date(today);
     d.setDate(d.getDate() - i);
     const iso = d.toISOString().split('T')[0];
-    labels.push(iso);
+    labels.push(d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }));
     const sum = entries.filter(e => e.date === iso).reduce((s, e) => s + e.co2, 0);
     values.push(sum);
   }
 
   const ctx = canvas.getContext('2d');
-  const W   = canvas.width  = canvas.offsetWidth  || 300;
-  const H   = canvas.height = canvas.offsetHeight || 220;
-  ctx.clearRect(0, 0, W, H);
+  const gradient = ctx.createLinearGradient(0, 0, 0, canvas.parentElement?.clientHeight || 220);
+  gradient.addColorStop(0, 'rgba(16,185,129,0.30)');
+  gradient.addColorStop(1, 'rgba(16,185,129,0.02)');
 
-  const pad = { t: 20, r: 20, b: 40, l: 44 };
-  const chartW = W - pad.l - pad.r;
-  const chartH = H - pad.t - pad.b;
-  const maxVal = Math.max(...values, 1);
-
-  // Grid lines
-  const steps = 4;
-  ctx.strokeStyle = '#e5e7eb';
-  ctx.lineWidth = 1;
-  for (let i = 0; i <= steps; i++) {
-    const y = pad.t + chartH - (i / steps) * chartH;
-    ctx.beginPath();
-    ctx.moveTo(pad.l, y);
-    ctx.lineTo(pad.l + chartW, y);
-    ctx.stroke();
-    // Y label
-    ctx.fillStyle = '#9ca3af';
-    ctx.font = '11px Inter, sans-serif';
-    ctx.textAlign = 'right';
-    ctx.fillText(((maxVal * i / steps).toFixed(1)), pad.l - 6, y + 4);
+  if (timelineChartInstance) {
+    timelineChartInstance.destroy();
+    timelineChartInstance = null;
   }
 
-  // Build path
-  const pts = values.map((v, i) => [
-    pad.l + (i / (values.length - 1)) * chartW,
-    pad.t + chartH - (v / maxVal) * chartH,
-  ]);
-
-  // Fill area
-  ctx.beginPath();
-  ctx.moveTo(pts[0][0], pad.t + chartH);
-  pts.forEach(([x, y]) => ctx.lineTo(x, y));
-  ctx.lineTo(pts[pts.length - 1][0], pad.t + chartH);
-  ctx.closePath();
-  const grad = ctx.createLinearGradient(0, pad.t, 0, pad.t + chartH);
-  grad.addColorStop(0, 'rgba(22,163,74,.25)');
-  grad.addColorStop(1, 'rgba(22,163,74,.02)');
-  ctx.fillStyle = grad;
-  ctx.fill();
-
-  // Line
-  ctx.beginPath();
-  ctx.moveTo(pts[0][0], pts[0][1]);
-  pts.forEach(([x, y]) => ctx.lineTo(x, y));
-  ctx.strokeStyle = '#16a34a';
-  ctx.lineWidth = 2;
-  ctx.lineJoin = 'round';
-  ctx.stroke();
-
-  // Dots on non-zero
-  pts.forEach(([x, y], i) => {
-    if (values[i] > 0) {
-      ctx.beginPath();
-      ctx.arc(x, y, 4, 0, 2 * Math.PI);
-      ctx.fillStyle = '#16a34a';
-      ctx.fill();
-      ctx.strokeStyle = '#fff';
-      ctx.lineWidth = 1.5;
-      ctx.stroke();
-    }
-  });
-
-  // X-axis labels (every 5 days)
-  ctx.fillStyle = '#9ca3af';
-  ctx.font = '10px Inter, sans-serif';
-  ctx.textAlign = 'center';
-  labels.forEach((l, i) => {
-    if (i % 5 === 0 || i === labels.length - 1) {
-      const x = pad.l + (i / (labels.length - 1)) * chartW;
-      const d = new Date(l + 'T00:00:00');
-      ctx.fillText(
-        d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }),
-        x, H - pad.b + 16
-      );
-    }
+  timelineChartInstance = new Chart(canvas, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [{
+        label: 'Daily emissions',
+        data: values,
+        borderColor: '#10b981',
+        backgroundColor: gradient,
+        fill: true,
+        tension: 0.38,
+        borderWidth: 3,
+        pointBackgroundColor: '#10b981',
+        pointBorderColor: '#ffffff',
+        pointBorderWidth: 2,
+        pointHoverRadius: 5,
+        pointRadius(context) {
+          const value = Number(context.raw || 0);
+          return value > 0 ? 3 : 0;
+        },
+      }],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: {
+        duration: 550,
+        easing: 'easeOutQuart',
+      },
+      interaction: {
+        mode: 'index',
+        intersect: false,
+      },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: '#0f172a',
+          titleColor: '#f8fafc',
+          bodyColor: '#e2e8f0',
+          padding: 12,
+          cornerRadius: 10,
+          displayColors: false,
+          callbacks: {
+            label(context) {
+              return `${Number(context.raw || 0).toFixed(2)} kg CO₂e`;
+            },
+          },
+        },
+      },
+      scales: {
+        x: {
+          grid: {
+            display: false,
+          },
+          ticks: {
+            maxTicksLimit: 6,
+            color: '#94a3b8',
+            font: {
+              size: 10,
+            },
+          },
+          border: {
+            display: false,
+          },
+        },
+        y: {
+          beginAtZero: true,
+          ticks: {
+            color: '#94a3b8',
+            font: {
+              size: 10,
+            },
+            callback(value) {
+              return `${Number(value).toFixed(1)} kg`;
+            },
+          },
+          grid: {
+            color: '#e2e8f0',
+            drawTicks: false,
+          },
+          border: {
+            display: false,
+          },
+        },
+      },
+    },
   });
 }
 
@@ -606,6 +906,8 @@ function initHistory() {
   document.getElementById('filterCategory').addEventListener('change', renderHistory);
   document.getElementById('filterPeriod').addEventListener('change', renderHistory);
   document.getElementById('searchHistory').addEventListener('input', renderHistory);
+  document.getElementById('sortHistory').addEventListener('change', renderHistory);
+  document.getElementById('exportCSV').addEventListener('click', exportCSV);
 }
 
 function renderHistory() {
@@ -635,6 +937,18 @@ function renderHistory() {
     }
     return true;
   });
+
+  // Apply sort order
+  const sortVal = document.getElementById('sortHistory').value;
+  if (sortVal === 'oldest') {
+    filtered.sort((a, b) => a.date.localeCompare(b.date));
+  } else if (sortVal === 'co2_high') {
+    filtered.sort((a, b) => b.co2 - a.co2);
+  } else if (sortVal === 'co2_low') {
+    filtered.sort((a, b) => a.co2 - b.co2);
+  } else {
+    filtered.sort((a, b) => b.date.localeCompare(a.date));
+  }
 
   const total = filtered.reduce((s, e) => s + e.co2, 0);
   document.getElementById('historyCount').textContent = filtered.length + ' entr' + (filtered.length === 1 ? 'y' : 'ies');
@@ -689,9 +1003,13 @@ function formatTypeLabel(category, type) {
       flight_short: 'Short-haul Flight', flight_long: 'Long-haul Flight',
       bicycle: 'Bicycle / Walking',
     },
-    energy: {
+    electricity: {
       electricity_grid: 'Grid Electricity', electricity_solar: 'Solar Electricity',
+      renewable_electricity: 'Renewable Supplier',
+    },
+    home_energy: {
       natural_gas: 'Natural Gas', heating_oil: 'Heating Oil', coal: 'Coal', lpg: 'LPG',
+      district_heating: 'District Heating',
     },
     food: {
       beef: 'Beef', lamb: 'Lamb', pork: 'Pork', chicken: 'Chicken', fish: 'Fish',
@@ -703,12 +1021,177 @@ function formatTypeLabel(category, type) {
       books_paper: 'Books / Paper', plastic_goods: 'Plastic Goods',
       metal_goods: 'Metal Goods', online_delivery: 'Online Delivery',
     },
+    energy: {
+      electricity_grid: 'Grid Electricity', electricity_solar: 'Solar Electricity',
+      natural_gas: 'Natural Gas', heating_oil: 'Heating Oil', coal: 'Coal', lpg: 'LPG',
+    },
     waste: {
       general_waste: 'General Waste', recycling: 'Recycling',
       composting: 'Composting', food_waste: 'Food Waste',
     },
   };
   return (labels[category] && labels[category][type]) || type;
+}
+/* ─── Goal ────────────────────────────────── */
+function initGoal() {
+  const input  = document.getElementById('goalInput');
+  const setBtn = document.getElementById('goalSetBtn');
+  if (!input || !setBtn) return;
+  if (monthlyGoal) input.value = monthlyGoal;
+
+  function applyGoal() {
+    const val = parseFloat(input.value);
+    if (!val || val < 1 || val > 9999) { showToast('Enter a valid goal (1–9999 kg).', 'error'); return; }
+    monthlyGoal = val;
+    saveGoalToStorage(val);
+    renderDashboard();
+    showToast('Goal set: ' + val + ' kg CO₂e / month ✓');
+  }
+
+  setBtn.addEventListener('click', applyGoal);
+  input.addEventListener('keydown', e => { if (e.key === 'Enter') applyGoal(); });
+  document.querySelectorAll('.goal-preset-btn').forEach(btn => {
+    btn.addEventListener('click', () => { input.value = btn.dataset.val; applyGoal(); });
+  });
+}
+
+function renderGoalCard(monthlyTotal) {
+  const section  = document.getElementById('goalProgressSection');
+  const pill     = document.getElementById('goalStatusPill');
+  const input    = document.getElementById('goalInput');
+  if (!section) return;
+
+  if (!monthlyGoal) {
+    section.style.display = 'none';
+    if (pill) { pill.textContent = 'No goal set'; pill.className = 'goal-status-pill'; }
+    return;
+  }
+
+  if (input && document.activeElement !== input) input.value = monthlyGoal;
+
+  const pct    = (monthlyTotal / monthlyGoal) * 100;
+  const remain = Math.max(0, monthlyGoal - monthlyTotal);
+  const over   = Math.max(0, monthlyTotal - monthlyGoal);
+
+  section.style.display = '';
+  const fill = document.getElementById('goalFill');
+  fill.style.width = Math.min(100, pct).toFixed(1) + '%';
+  if (pct >= 100)     fill.style.background = 'linear-gradient(90deg,#ef4444,#dc2626)';
+  else if (pct >= 80) fill.style.background = 'linear-gradient(90deg,#f59e0b,#d97706)';
+  else                fill.style.background = 'linear-gradient(90deg,#10b981,#059669)';
+
+  document.getElementById('goalPct').textContent        = Math.min(100, Math.round(pct)) + '%';
+  document.getElementById('goalStatUsed').textContent   = monthlyTotal.toFixed(1) + ' kg used';
+  document.getElementById('goalStatTarget').textContent = 'Goal: ' + monthlyGoal + ' kg';
+
+  const remainEl = document.getElementById('goalStatRemain');
+  const msgEl    = document.getElementById('goalMsg');
+
+  if (monthlyTotal === 0) {
+    remainEl.textContent = monthlyGoal + ' kg remaining';
+    msgEl.textContent = '';
+    if (pill) { pill.textContent = 'Goal set'; pill.className = 'goal-status-pill goal-pill--neutral'; }
+  } else if (pct >= 100) {
+    remainEl.textContent = over.toFixed(1) + ' kg over goal';
+    msgEl.textContent = '⚠️ Monthly goal exceeded. Try to reduce your footprint.';
+    if (pill) { pill.textContent = '❌ Goal exceeded'; pill.className = 'goal-status-pill goal-pill--over'; }
+  } else if (pct >= 80) {
+    remainEl.textContent = remain.toFixed(1) + ' kg remaining';
+    msgEl.textContent = '⚡ Getting close — ' + remain.toFixed(1) + ' kg left to stay on target.';
+    if (pill) { pill.textContent = '⚡ Almost full'; pill.className = 'goal-status-pill goal-pill--warn'; }
+  } else {
+    remainEl.textContent = remain.toFixed(1) + ' kg remaining';
+    msgEl.textContent = '✅ On track to meet your goal this month!';
+    if (pill) { pill.textContent = '✅ On track'; pill.className = 'goal-status-pill goal-pill--good'; }
+  }
+}
+/* ─── Personalized Tips ──────────────────────── */
+function getCalcTips(category, type) {
+  const all    = ECO_TIPS.filter(t => t.cat === category);
+  const exact  = all.filter(t => (TIP_TYPE_MAP[t.title] || []).includes(type));
+  const others = all.filter(t => !exact.includes(t));
+  return [...exact, ...others].slice(0, 2);
+}
+
+function renderCalcTips() {
+  const panel = document.getElementById('calcTipsPanel');
+  if (!panel) return;
+  const vals = getFormValues();
+  const kg = vals ? getCO2(vals.category, vals.type, vals.amount) : 0;
+  if (!vals || kg <= 0) { panel.style.display = 'none'; return; }
+  const tips = getCalcTips(vals.category, vals.type);
+  if (!tips.length) { panel.style.display = 'none'; return; }
+  panel.style.display = '';
+  panel.innerHTML =
+    `<div class="calc-tips-hdr">💡 Tips to reduce this</div>` +
+    `<div class="calc-tips-list">` +
+    tips.map(t =>
+      `<div class="calc-tip-item">` +
+        `<span class="calc-tip-emoji">${t.emoji}</span>` +
+        `<div class="calc-tip-body">` +
+          `<div class="calc-tip-title">${sanitizeText(t.title)}</div>` +
+          `<div class="calc-tip-saving">${sanitizeText(t.saving)}</div>` +
+        `</div>` +
+      `</div>`
+    ).join('') +
+    `</div>`;
+}
+
+function getPersonalizedTips() {
+  if (!entries.length) return [];
+  const cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - 30);
+  const recent = entries.filter(e => new Date(e.date + 'T00:00:00') >= cutoff);
+  if (!recent.length) return [];
+  // Sum CO₂ by category, highest first
+  const totals = {};
+  recent.forEach(e => { totals[e.category] = (totals[e.category] || 0) + e.co2; });
+  const sortedCats = Object.keys(totals).sort((a, b) => totals[b] - totals[a]);
+  const result = [];
+  const seen   = new Set();
+  for (const cat of sortedCats) {
+    // Find the type with highest CO₂ in this category
+    const typeTotals = {};
+    recent.filter(e => e.category === cat)
+          .forEach(e => { typeTotals[e.type] = (typeTotals[e.type] || 0) + e.co2; });
+    const topType = Object.keys(typeTotals).sort((a, b) => typeTotals[b] - typeTotals[a])[0];
+    for (const tip of getCalcTips(cat, topType)) {
+      if (!seen.has(tip.title)) {
+        seen.add(tip.title);
+        result.push({ ...tip, _cat: cat, _total: totals[cat] });
+        if (result.length >= 3) return result;
+      }
+    }
+  }
+  return result;
+}
+
+function renderPersonalizedTips(containerId) {
+  const container = document.getElementById(containerId);
+  if (!container) return;
+  const tips = getPersonalizedTips();
+  if (!tips.length) { container.style.display = 'none'; return; }
+  container.style.display = '';
+  container.innerHTML =
+    `<div class="pers-tips-hdr">` +
+      `<span class="pers-tips-label">✨ Personalised for you</span>` +
+      `<span class="pers-tips-sub">Based on your highest-emission activities (last 30 days)</span>` +
+    `</div>` +
+    `<div class="pers-tips-grid">` +
+    tips.map(t => {
+      const m   = CATEGORY_META[t._cat] || {};
+      const col = m.color || '#10b981';
+      return `<div class="pers-tip-card" style="border-top:3px solid ${col}">` +
+        `<div class="pers-tip-top">` +
+          `<span class="pers-tip-emoji">${t.emoji}</span>` +
+          `<span class="pers-tip-badge" style="background:${col}22;color:${col}">${sanitizeText(m.label || t._cat)}</span>` +
+        `</div>` +
+        `<div class="pers-tip-title">${sanitizeText(t.title)}</div>` +
+        `<p class="pers-tip-desc">${sanitizeText(t.desc)}</p>` +
+        `<div class="pers-tip-saving">${sanitizeText(t.saving)}</div>` +
+      `</div>`;
+    }).join('') +
+    `</div>`;
 }
 
 /* ─── Eco Tips ───────────────────────────────── */
@@ -724,6 +1207,7 @@ function initTips() {
 }
 
 function renderTips(filter) {
+  renderPersonalizedTips('tipsPersonalizedSection');
   const grid = document.getElementById('tipsGrid');
   const tips = filter === 'all' ? ECO_TIPS : ECO_TIPS.filter(t => t.cat === filter);
   grid.innerHTML = tips.map(t => {
@@ -741,6 +1225,274 @@ function renderTips(filter) {
         <div class="tip-saving">${sanitizeText(t.saving)}</div>
       </div>`;
   }).join('');
+}
+
+/* ─── Report ─────────────────────────────────── */
+function buildReportMonths() {
+  const set = new Set();
+  entries.forEach(e => {
+    const d = new Date(e.date + 'T00:00:00');
+    set.add(d.getFullYear() + '-' + d.getMonth());
+  });
+  const now = new Date();
+  set.add(now.getFullYear() + '-' + now.getMonth());
+  return Array.from(set)
+    .map(key => {
+      const [y, m] = key.split('-').map(Number);
+      return { year: y, month: m, label: new Date(y, m, 1).toLocaleDateString(undefined, { month: 'long', year: 'numeric' }) };
+    })
+    .sort((a, b) => b.year - a.year || b.month - a.month);
+}
+
+function initReport() {
+  const sel = document.getElementById('reportMonth');
+  const btn = document.getElementById('downloadReportBtn');
+  if (!sel || !btn) return;
+  sel.addEventListener('change', renderReport);
+  btn.addEventListener('click', downloadReportPDF);
+  populateReportMonths();
+}
+
+function populateReportMonths() {
+  const sel = document.getElementById('reportMonth');
+  if (!sel) return;
+  const current = sel.value;
+  sel.innerHTML = '';
+  buildReportMonths().forEach((m, i) => {
+    const opt = document.createElement('option');
+    opt.value = m.year + '-' + m.month;
+    opt.textContent = m.label;
+    if (i === 0 && !current) opt.selected = true;
+    if (opt.value === current) opt.selected = true;
+    sel.appendChild(opt);
+  });
+}
+
+function getReportData(year, month) {
+  const monthEntries = entries.filter(e => {
+    const d = new Date(e.date + 'T00:00:00');
+    return d.getMonth() === month && d.getFullYear() === year;
+  });
+  const monthlyTotal = monthEntries.reduce((s, e) => s + e.co2, 0);
+  const catTotals = {};
+  monthEntries.forEach(e => { catTotals[e.category] = (catTotals[e.category] || 0) + e.co2; });
+  const topEntries = [...monthEntries].sort((a, b) => b.co2 - a.co2).slice(0, 5);
+  const topCat = Object.keys(catTotals).sort((a, b) => catTotals[b] - catTotals[a])[0];
+  let summaryMsg = '';
+  if (monthlyTotal === 0) {
+    summaryMsg = 'No activities recorded this month.';
+  } else if (monthlyTotal < 80) {
+    summaryMsg = 'Outstanding! Your monthly footprint is well below the Paris Climate Agreement target. You are a climate champion.';
+  } else if (monthlyTotal < 125) {
+    summaryMsg = 'Excellent work! You are below the 125 kg Paris Climate Goal this month. Keep it up.';
+  } else if (monthlyTotal < 166) {
+    summaryMsg = 'Good progress. You are above the Paris target but still below the global average of 166 kg CO\u2082e per month.';
+  } else if (monthlyTotal < 250) {
+    summaryMsg = 'Your footprint is above the global average. Focus on your highest-emission categories to reduce your impact.';
+  } else {
+    summaryMsg = 'Your footprint is significantly above the global average. The eco tips section has targeted actions to help you reduce it.';
+  }
+  if (topCat && monthlyTotal > 0) {
+    const m = CATEGORY_META[topCat] || {};
+    summaryMsg += ' Your highest-emission category is ' + (m.label || topCat) + ' (' + catTotals[topCat].toFixed(1) + ' kg CO\u2082e).';
+  }
+  if (monthlyGoal) {
+    const pct = (monthlyTotal / monthlyGoal * 100);
+    summaryMsg += pct >= 100
+      ? ' \u26a0\ufe0f You exceeded your monthly goal of ' + monthlyGoal + ' kg.'
+      : ' \u2705 You used ' + Math.round(pct) + '% of your ' + monthlyGoal + ' kg goal.';
+  }
+  return { monthEntries, monthlyTotal, catTotals, topEntries, summaryMsg };
+}
+
+function renderReport() {
+  populateReportMonths();
+  const sel = document.getElementById('reportMonth');
+  const content = document.getElementById('reportContent');
+  if (!sel || !sel.value || !content) return;
+  const [year, month] = sel.value.split('-').map(Number);
+  const { monthEntries, monthlyTotal, catTotals, topEntries, summaryMsg } = getReportData(year, month);
+  const monthLabel = new Date(year, month, 1).toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+
+  if (monthEntries.length === 0) {
+    content.innerHTML = '<div class="card"><div class="empty-state visible"><span>\ud83d\udccb</span><p>No activities logged for ' + sanitizeText(monthLabel) + '. Log activities in the Calculator first.</p></div></div>';
+    return;
+  }
+
+  const sortedCats = Object.keys(catTotals).sort((a, b) => catTotals[b] - catTotals[a]);
+  const uniqueDays = new Set(monthEntries.map(e => e.date)).size;
+  const dailyAvg = (monthlyTotal / Math.max(1, uniqueDays)).toFixed(2);
+
+  // Goal block
+  let goalHtml = '';
+  if (monthlyGoal) {
+    const pct = Math.min(100, (monthlyTotal / monthlyGoal) * 100);
+    const remain = Math.max(0, monthlyGoal - monthlyTotal);
+    const over = Math.max(0, monthlyTotal - monthlyGoal);
+    const color = pct >= 100 ? '#ef4444' : pct >= 80 ? '#f59e0b' : '#10b981';
+    goalHtml =
+      '<div class="card rpt-goal-card">' +
+        '<div class="rpt-section-title">\ud83c\udfaf Goal Progress</div>' +
+        '<div class="rpt-goal-row">' +
+          '<div class="rpt-goal-meta">' +
+            '<span>Target: <strong>' + monthlyGoal + ' kg</strong></span>' +
+            '<span class="rpt-goal-remain" style="color:' + color + '">' +
+              (pct >= 100 ? over.toFixed(1) + ' kg over goal' : remain.toFixed(1) + ' kg remaining') +
+            '</span>' +
+          '</div>' +
+          '<span class="rpt-goal-pct" style="color:' + color + '">' + Math.round(pct) + '%</span>' +
+        '</div>' +
+        '<div class="rpt-bar-track"><div class="rpt-bar-fill" style="width:' + pct.toFixed(1) + '%;background:' + color + '"></div></div>' +
+      '</div>';
+  }
+
+  content.innerHTML =
+    '<div class="report-kpi-row">' +
+      '<div class="rpt-kpi-card rpt-kpi--total">' +
+        '<div class="rpt-kpi-val">' + monthlyTotal.toFixed(2) + '</div>' +
+        '<div class="rpt-kpi-unit">kg CO\u2082e</div>' +
+        '<div class="rpt-kpi-lbl">Total Emissions</div>' +
+      '</div>' +
+      '<div class="rpt-kpi-card">' +
+        '<div class="rpt-kpi-val">' + monthEntries.length + '</div>' +
+        '<div class="rpt-kpi-unit">activities</div>' +
+        '<div class="rpt-kpi-lbl">Entries Logged</div>' +
+      '</div>' +
+      '<div class="rpt-kpi-card">' +
+        '<div class="rpt-kpi-val">' + dailyAvg + '</div>' +
+        '<div class="rpt-kpi-unit">kg CO\u2082e / day</div>' +
+        '<div class="rpt-kpi-lbl">Daily Average</div>' +
+      '</div>' +
+      '<div class="rpt-kpi-card">' +
+        '<div class="rpt-kpi-val">' + carbonRatingLabel(monthlyTotal) + '</div>' +
+        '<div class="rpt-kpi-unit">&nbsp;</div>' +
+        '<div class="rpt-kpi-lbl">Carbon Rating</div>' +
+      '</div>' +
+    '</div>' +
+    goalHtml +
+    '<div class="card">' +
+      '<div class="rpt-section-title">\ud83d\udcca Category Breakdown</div>' +
+      '<div class="rpt-cat-list">' +
+        sortedCats.map(cat => {
+          const meta = CATEGORY_META[cat] || {};
+          const pct = monthlyTotal > 0 ? (catTotals[cat] / monthlyTotal * 100) : 0;
+          return '<div class="rpt-cat-row">' +
+            '<div class="rpt-cat-label">' +
+              '<span class="rpt-cat-dot" style="background:' + (meta.color || '#ccc') + '"></span>' +
+              '<span class="rpt-cat-icon">' + (meta.icon || '') + '</span>' +
+              '<span class="rpt-cat-name">' + sanitizeText(meta.label || cat) + '</span>' +
+            '</div>' +
+            '<div class="rpt-cat-bar-wrap">' +
+              '<div class="rpt-cat-bar" style="width:' + pct.toFixed(1) + '%;background:' + (meta.color || '#10b981') + '"></div>' +
+            '</div>' +
+            '<div class="rpt-cat-vals">' +
+              '<span class="rpt-cat-kg">' + catTotals[cat].toFixed(2) + ' kg</span>' +
+              '<span class="rpt-cat-pct">' + pct.toFixed(1) + '%</span>' +
+            '</div>' +
+          '</div>';
+        }).join('') +
+      '</div>' +
+    '</div>' +
+    '<div class="card">' +
+      '<div class="rpt-section-title">\ud83d\udd1d Top Activities This Month</div>' +
+      '<div class="rpt-top-list">' +
+        topEntries.map((e, i) => {
+          const meta = CATEGORY_META[e.category] || {};
+          const label = formatTypeLabel(e.category, e.type);
+          const noteStr = e.note ? ' \u00b7 ' + sanitizeText(e.note) : '';
+          return '<div class="rpt-top-item">' +
+            '<span class="rpt-top-rank">' + (i + 1) + '</span>' +
+            '<span class="rpt-top-icon" style="background:' + (meta.color || '#ccc') + '22">' + (meta.icon || '\ud83d\udce6') + '</span>' +
+            '<div class="rpt-top-info">' +
+              '<div class="rpt-top-name">' + sanitizeText(label) + '</div>' +
+              '<div class="rpt-top-meta">' + sanitizeText(formatDate(e.date)) + ' \u00b7 ' + e.amount + ' ' + (UNIT_LABELS[e.category] || '') + noteStr + '</div>' +
+            '</div>' +
+            '<span class="rpt-top-co2">' + e.co2.toFixed(3) + ' kg</span>' +
+          '</div>';
+        }).join('') +
+      '</div>' +
+    '</div>' +
+    '<div class="card rpt-summary-card">' +
+      '<div class="rpt-section-title">\ud83d\udcac Summary</div>' +
+      '<p class="rpt-summary-msg">' + sanitizeText(summaryMsg) + '</p>' +
+      '<div class="rpt-benchmarks">' +
+        '<span class="rpt-bench-item">\ud83c\udf0d World avg: <strong>166 kg/mo</strong></span>' +
+        '<span class="rpt-bench-item">\ud83c\udf31 Paris goal: <strong>125 kg/mo</strong></span>' +
+        '<span class="rpt-bench-item">\u2b50 Your total: <strong>' + monthlyTotal.toFixed(1) + ' kg</strong></span>' +
+        (monthlyGoal ? '<span class="rpt-bench-item">\ud83c\udfaf Your goal: <strong>' + monthlyGoal + ' kg</strong></span>' : '') +
+      '</div>' +
+    '</div>';
+}
+
+function downloadReportPDF() {
+  const sel = document.getElementById('reportMonth');
+  if (!sel || !sel.value) { showToast('Select a month first.', 'error'); return; }
+  const [year, month] = sel.value.split('-').map(Number);
+  const { monthEntries, monthlyTotal, catTotals, topEntries, summaryMsg } = getReportData(year, month);
+  if (monthEntries.length === 0) { showToast('No data to export for this month.', 'error'); return; }
+  const monthLabel = new Date(year, month, 1).toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+  const generated  = new Date().toLocaleDateString(undefined, { day: 'numeric', month: 'long', year: 'numeric' });
+  const sortedCats = Object.keys(catTotals).sort((a, b) => catTotals[b] - catTotals[a]);
+  const uniqueDays = new Set(monthEntries.map(e => e.date)).size;
+
+  const catRows = sortedCats.map(cat => {
+    const meta = CATEGORY_META[cat] || {};
+    const pct  = monthlyTotal > 0 ? (catTotals[cat] / monthlyTotal * 100) : 0;
+    return '<tr><td style="padding:7px 8px"><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:' + (meta.color || '#ccc') + ';margin-right:7px;vertical-align:middle"></span>' + (meta.label || cat) + '</td>' +
+      '<td style="padding:7px 8px"><div style="background:#f1f5f9;border-radius:99px;height:10px;overflow:hidden"><div style="height:100%;border-radius:99px;background:' + (meta.color || '#10b981') + ';width:' + pct.toFixed(1) + '%"></div></div></td>' +
+      '<td style="padding:7px 8px;text-align:right;font-weight:700">' + catTotals[cat].toFixed(2) + ' kg</td>' +
+      '<td style="padding:7px 8px;text-align:right;color:#94a3b8">' + pct.toFixed(1) + '%</td></tr>';
+  }).join('');
+
+  const topRows = topEntries.map((e, i) => {
+    const meta  = CATEGORY_META[e.category] || {};
+    const label = formatTypeLabel(e.category, e.type);
+    return '<tr><td style="padding:7px 8px;color:#94a3b8;font-weight:700">' + (i + 1) + '</td>' +
+      '<td style="padding:7px 8px"><strong>' + label + '</strong><br><span style="font-size:11px;color:#94a3b8">' + e.date + ' · ' + e.amount + ' ' + (UNIT_LABELS[e.category] || '') + (e.note ? ' · ' + e.note : '') + '</span></td>' +
+      '<td style="padding:7px 8px;text-align:right;font-weight:700;color:#059669">' + e.co2.toFixed(3) + ' kg</td></tr>';
+  }).join('');
+
+  const goalSection = monthlyGoal ? (() => {
+    const pct   = Math.min(100, (monthlyTotal / monthlyGoal) * 100);
+    const color = pct >= 100 ? '#ef4444' : pct >= 80 ? '#f59e0b' : '#10b981';
+    return '<div style="margin-bottom:28px"><h3 style="font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#64748b;padding-bottom:6px;border-bottom:1px solid #e2e8f0;margin-bottom:14px">\uD83C\uDFAF Goal Progress</h3>' +
+      '<div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:8px"><span>Target: <strong>' + monthlyGoal + ' kg</strong> &nbsp;&middot;&nbsp; Used: <strong>' + monthlyTotal.toFixed(1) + ' kg</strong></span><span style="font-weight:800;color:' + color + '">' + Math.round(pct) + '%</span></div>' +
+      '<div style="background:#f1f5f9;border-radius:99px;height:12px;overflow:hidden"><div style="height:100%;border-radius:99px;background:' + color + ';width:' + pct.toFixed(1) + '%"></div></div></div>';
+  })() : '';
+
+  const html = '<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><title>Carbon Report \u2013 ' + monthLabel + '</title>' +
+    '<style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:Arial,Helvetica,sans-serif;color:#1e293b;padding:36px 40px;font-size:13px;line-height:1.5}' +
+    'h1{font-size:22px;color:#059669;margin-bottom:3px}.subtitle{color:#64748b;font-size:12px;margin-bottom:28px;padding-bottom:14px;border-bottom:2px solid #e2e8f0}' +
+    '.kpi-row{display:flex;gap:12px;margin-bottom:28px}.kpi-box{flex:1;border:1px solid #e2e8f0;border-radius:8px;padding:14px 12px;text-align:center}' +
+    '.kpi-box.primary{background:#f0fdf4;border-color:#bbf7d0}.kpi-val{font-size:22px;font-weight:800;color:#059669}.kpi-box:not(.primary) .kpi-val{font-size:18px;color:#1e293b}' +
+    '.kpi-unit{font-size:10px;color:#64748b;margin-bottom:2px}.kpi-lbl{font-size:11px;color:#475569}' +
+    'table{width:100%;border-collapse:collapse}td{vertical-align:middle}tbody tr:nth-child(odd){background:#f8fafc}' +
+    'h3{font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#64748b;padding-bottom:6px;border-bottom:1px solid #e2e8f0;margin-bottom:14px}' +
+    '.summary-box{background:#f0fdf4;border-left:3px solid #10b981;padding:12px 16px;border-radius:4px;font-size:12px;line-height:1.7;margin-bottom:14px}' +
+    '.bench{display:flex;gap:20px;font-size:11px;color:#475569;flex-wrap:wrap}' +
+    '.footer{margin-top:36px;padding-top:12px;border-top:1px solid #e2e8f0;font-size:10px;color:#94a3b8;display:flex;justify-content:space-between}' +
+    '@media print{body{padding:20px 24px}}</style></head><body>' +
+    '<h1>\uD83C\uDF3F Monthly Carbon Report</h1>' +
+    '<p class="subtitle">' + monthLabel + ' &nbsp;&middot;&nbsp; Generated ' + generated + ' &nbsp;&middot;&nbsp; SmartCarbonTracker</p>' +
+    '<div class="kpi-row">' +
+      '<div class="kpi-box primary"><div class="kpi-val">' + monthlyTotal.toFixed(2) + '</div><div class="kpi-unit">kg CO\u2082e</div><div class="kpi-lbl">Total Emissions</div></div>' +
+      '<div class="kpi-box"><div class="kpi-val">' + monthEntries.length + '</div><div class="kpi-unit">activities</div><div class="kpi-lbl">Entries Logged</div></div>' +
+      '<div class="kpi-box"><div class="kpi-val">' + (monthlyTotal / Math.max(1, uniqueDays)).toFixed(2) + '</div><div class="kpi-unit">kg CO\u2082e / day</div><div class="kpi-lbl">Daily Average</div></div>' +
+      '<div class="kpi-box"><div class="kpi-val">' + carbonRatingLabel(monthlyTotal) + '</div><div class="kpi-unit">&nbsp;</div><div class="kpi-lbl">Carbon Rating</div></div>' +
+    '</div>' +
+    goalSection +
+    '<div style="margin-bottom:28px"><h3>\uD83D\uDCCA Category Breakdown</h3><table><tbody>' + catRows + '</tbody></table></div>' +
+    '<div style="margin-bottom:28px"><h3>\uD83D\uDD1D Top Activities</h3><table><tbody>' + topRows + '</tbody></table></div>' +
+    '<div><h3>\uD83D\uDCAC Summary</h3><div class="summary-box">' + summaryMsg + '</div>' +
+    '<div class="bench"><span>\uD83C\uDF0D World avg: <strong>166 kg/mo</strong></span><span>\uD83C\uDF31 Paris goal: <strong>125 kg/mo</strong></span><span>\u2B50 Your total: <strong>' + monthlyTotal.toFixed(1) + ' kg</strong></span>' +
+    (monthlyGoal ? '<span>\uD83C\uDFAF Your goal: <strong>' + monthlyGoal + ' kg</strong></span>' : '') + '</div></div>' +
+    '<div class="footer"><span>SmartCarbonTracker &middot; Monthly Carbon Report</span><span>' + monthLabel + '</span></div>' +
+    '<script>window.onload=function(){window.print();};<\/script></body></html>';
+
+  const win = window.open('', '_blank', 'width=820,height=960');
+  if (!win) { showToast('Allow pop-ups to download the PDF.', 'error'); return; }
+  win.document.write(html);
+  win.document.close();
 }
 
 /* ─── Resize: redraw charts when window resizes ─ */
