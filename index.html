@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Smart Carbon Tracker</title>
   <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
 </head>
@@ -66,6 +67,10 @@
         <button class="sidebar-btn" data-section="report">
           <span class="sbtn-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" width="18" height="18"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg></span>
           <span class="sbtn-label">Report</span>
+        </button>
+        <button class="sidebar-btn" data-section="map">
+          <span class="sbtn-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" width="18" height="18"><path d="M9 18l-6 3V6l6-3 6 3 6-3v15l-6 3-6-3z"/><line x1="9" y1="3" x2="9" y2="18"/><line x1="15" y1="6" x2="15" y2="21"/></svg></span>
+          <span class="sbtn-label">Impact Map</span>
         </button>
       </nav>
       <div class="sidebar-footer">
@@ -163,6 +168,24 @@
           </div>
         </div>
 
+        <div class="card live-travel-card" id="liveTravelCard">
+          <div class="card-hdr">
+            <div><h3 class="card-title">Live Travel Detection</h3><p class="card-desc">Real-time distance and emissions from your current trip</p></div>
+            <div class="travel-pill" id="liveTravelPill">Idle</div>
+          </div>
+          <div class="live-travel-grid">
+            <div class="live-travel-box">
+              <span class="live-travel-label">Distance</span>
+              <span class="live-travel-value" id="liveTravelDistance">0.00 km</span>
+            </div>
+            <div class="live-travel-box">
+              <span class="live-travel-label">Estimated CO₂</span>
+              <span class="live-travel-value" id="liveTravelCO2">0.000 kg</span>
+            </div>
+          </div>
+          <p class="live-travel-msg" id="liveTravelStatus">Start tracking from the Transport calculator to detect travel automatically.</p>
+        </div>
+
         <!-- Monthly Goal -->
         <div class="card goal-card">
           <div class="card-hdr">
@@ -200,6 +223,56 @@
           </div>
         </div>
 
+        <div class="card offset-card" id="offsetCard">
+          <div class="card-hdr">
+            <div><h3 class="card-title">Carbon Offset Planner</h3><p class="card-desc">Estimate offset costs and track your progress toward balancing your footprint</p></div>
+            <div class="offset-pill" id="offsetProgressText">0% offset</div>
+          </div>
+          <div class="offset-top-metrics">
+            <div class="offset-metric">
+              <span class="offset-metric-label">Total Footprint</span>
+              <strong id="offsetTotalKg">0.00 kg</strong>
+            </div>
+            <div class="offset-metric">
+              <span class="offset-metric-label">Selected Plan Cost</span>
+              <strong id="offsetRequiredCost">$0.00</strong>
+            </div>
+            <div class="offset-metric">
+              <span class="offset-metric-label">CO₂ Covered</span>
+              <strong id="offsetCoverageKg">0.00 kg</strong>
+            </div>
+          </div>
+
+          <div class="offset-options-grid">
+            <button class="offset-option active" id="offsetOptionTree" data-offset="tree">
+              <div class="offset-option-top"><span class="offset-option-emoji">🌳</span><span class="offset-option-title">Tree Planting</span></div>
+              <div class="offset-option-cost">Estimated: <strong id="offsetTreeCost">$0.00</strong></div>
+              <div class="offset-option-contrib">Contributed: <strong id="offsetTreeContrib">$0.00</strong></div>
+              <div class="offset-mini-track"><div class="offset-mini-fill" id="offsetTreeBar" style="width:0%"></div></div>
+            </button>
+            <button class="offset-option" id="offsetOptionRenewable" data-offset="renewable">
+              <div class="offset-option-top"><span class="offset-option-emoji">⚡</span><span class="offset-option-title">Renewable Energy Support</span></div>
+              <div class="offset-option-cost">Estimated: <strong id="offsetRenewCost">$0.00</strong></div>
+              <div class="offset-option-contrib">Contributed: <strong id="offsetRenewContrib">$0.00</strong></div>
+              <div class="offset-mini-track"><div class="offset-mini-fill" id="offsetRenewBar" style="width:0%"></div></div>
+            </button>
+          </div>
+
+          <div class="offset-action-row">
+            <div class="offset-input-wrap">
+              <label for="offsetContributionAmount">Add Offset Contribution (USD)</label>
+              <input type="number" id="offsetContributionAmount" min="1" step="1" placeholder="e.g. 15" />
+            </div>
+            <button class="btn btn-primary" id="offsetAddBtn">Add Contribution</button>
+          </div>
+
+          <div class="offset-track-wrap">
+            <div class="offset-track"><div class="offset-fill" id="offsetProgressFill" style="width:0%"></div></div>
+            <span class="offset-pct" id="offsetCoveragePct">0%</span>
+          </div>
+          <p class="offset-message" id="offsetMessage">Choose an offset option and add contributions to start offsetting your emissions.</p>
+        </div>
+
         <!-- Charts -->
         <div class="charts-row">
           <div class="card chart-card">
@@ -228,6 +301,124 @@
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="36" height="36"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
               <p>Log activities to view your emissions trend</p>
             </div>
+          </div>
+        </div>
+
+        <div class="card prediction-card" id="predictionCard">
+          <div class="card-hdr">
+            <div><h3 class="card-title">AI Emission Prediction</h3><p class="card-desc">Forecasting your next 7 and 30 days using your historical activity data</p></div>
+            <div class="prediction-pill" id="predictionStatus">Preparing model</div>
+          </div>
+          <div class="prediction-values">
+            <div class="prediction-value-box">
+              <span class="prediction-label">Next Week</span>
+              <span class="prediction-value" id="predictionWeek">--</span>
+              <span class="prediction-unit">kg CO₂e</span>
+            </div>
+            <div class="prediction-value-box">
+              <span class="prediction-label">Next Month</span>
+              <span class="prediction-value" id="predictionMonth">--</span>
+              <span class="prediction-unit">kg CO₂e</span>
+            </div>
+          </div>
+          <p class="prediction-msg" id="predictionMessage">Add more daily records to train a stronger prediction model.</p>
+          <div class="prediction-chart-wrap">
+            <canvas id="predictionChart"></canvas>
+          </div>
+        </div>
+
+        <div class="card climate-sim-card" id="climateSimCard">
+          <div class="card-hdr">
+            <div><h3 class="card-title">Climate Impact Simulator</h3><p class="card-desc">Adjust global emissions and explore projected warming + sea level outcomes</p></div>
+            <div class="climate-sim-pill" id="climateSimPill">Interactive</div>
+          </div>
+
+          <div class="climate-slider-grid">
+            <div class="climate-slider-item">
+              <label for="simCO2">Global CO2 Emissions</label>
+              <input type="range" id="simCO2" min="40" max="180" step="1" value="100" />
+              <div class="climate-slider-val" id="simCO2Val">100%</div>
+            </div>
+            <div class="climate-slider-item">
+              <label for="simMethane">Methane Emissions</label>
+              <input type="range" id="simMethane" min="40" max="180" step="1" value="100" />
+              <div class="climate-slider-val" id="simMethaneVal">100%</div>
+            </div>
+            <div class="climate-slider-item">
+              <label for="simDeforestation">Deforestation Pressure</label>
+              <input type="range" id="simDeforestation" min="20" max="200" step="1" value="100" />
+              <div class="climate-slider-val" id="simDeforestationVal">100%</div>
+            </div>
+          </div>
+
+          <div class="climate-sim-kpis">
+            <div class="climate-sim-kpi">
+              <span>Projected Temperature Rise (2100)</span>
+              <strong id="simTempRise">1.5 C</strong>
+              <div class="climate-meter"><div class="climate-meter-fill temp" id="simTempFill" style="width:0%"></div></div>
+            </div>
+            <div class="climate-sim-kpi">
+              <span>Projected Sea Level Increase</span>
+              <strong id="simSeaRise">35 cm</strong>
+              <div class="climate-meter"><div class="climate-meter-fill sea" id="simSeaFill" style="width:0%"></div></div>
+            </div>
+          </div>
+
+          <div class="climate-chart-wrap">
+            <canvas id="climateSimChart"></canvas>
+          </div>
+
+          <div class="climate-edu-box" id="climateEduBox">
+            <h4>What this means</h4>
+            <p id="climateEduText">Move sliders to learn how global emissions pathways can alter long-term climate outcomes.</p>
+          </div>
+        </div>
+
+        <div class="card bill-analyzer-card" id="billAnalyzerCard">
+          <div class="card-hdr">
+            <div><h3 class="card-title">Electricity Bill Analyzer</h3><p class="card-desc">Upload a bill image or PDF, extract usage via OCR, and estimate emissions</p></div>
+            <div class="bill-pill" id="billAnalyzerPill">Ready</div>
+          </div>
+
+          <div class="bill-upload-row">
+            <input type="file" id="billFileInput" accept="image/*,.pdf,application/pdf" />
+            <button class="btn btn-primary" id="analyzeBillBtn">Analyze Bill</button>
+          </div>
+          <p class="bill-status" id="billAnalyzeStatus">Select a clear electricity bill photo or PDF to begin.</p>
+
+          <div class="bill-results" id="billResults" style="display:none">
+            <div class="bill-metrics-grid">
+              <div class="bill-metric">
+                <span class="bill-metric-label">Detected Usage</span>
+                <strong id="billUsageKwh">0.0 kWh</strong>
+              </div>
+              <div class="bill-metric">
+                <span class="bill-metric-label">Estimated Emissions</span>
+                <strong id="billEmissionsKg">0.0 kg CO₂e</strong>
+              </div>
+              <div class="bill-metric">
+                <span class="bill-metric-label">Daily Average</span>
+                <strong id="billDailyKwh">0.0 kWh/day</strong>
+              </div>
+              <div class="bill-metric">
+                <span class="bill-metric-label">30-Day Projection</span>
+                <strong id="billProjectedKg">0.0 kg CO₂e</strong>
+              </div>
+            </div>
+
+            <div class="bill-chart-wrap">
+              <canvas id="billAnalyzerChart"></canvas>
+            </div>
+
+            <div class="bill-tips-wrap">
+              <h4>Sustainability Tips</h4>
+              <ul id="billTipsList"></ul>
+            </div>
+
+            <details class="bill-text-preview">
+              <summary>Extracted Bill Text Preview</summary>
+              <pre id="billExtractedText"></pre>
+            </details>
           </div>
         </div>
 
@@ -272,38 +463,106 @@
           <p class="compare-msg" id="compareMsg">Log activities to start comparison.</p>
         </div>
 
+        <div class="card leaderboard-card">
+          <div class="card-hdr">
+            <div><h3 class="card-title">Global Carbon Leaderboard</h3><p class="card-desc">Top eco-friendly users ranked by lower daily emissions</p></div>
+            <div class="leaderboard-pill" id="leaderboardPill">Live</div>
+          </div>
+          <div class="leaderboard-head-row">
+            <span>Rank</span>
+            <span>User</span>
+            <span>Daily Carbon Score</span>
+          </div>
+          <div class="leaderboard-list" id="leaderboardList"></div>
+          <p class="leaderboard-note" id="leaderboardNote">Rankings update dynamically as new activity data is logged.</p>
+        </div>
+
         <div class="card badges-card">
           <div class="card-hdr">
-            <div><h3 class="card-title">Achievement Badges</h3><p class="card-desc">Unlock badges by reducing your monthly emissions over time</p></div>
+            <div><h3 class="card-title">User Profile Dashboard</h3><p class="card-desc">Track your level, reduction points, and earned achievements</p></div>
             <div class="badge-summary-pill" id="badgeSummary">0 / 3 unlocked</div>
           </div>
+
+          <div class="profile-grid">
+            <div class="profile-level-card">
+              <div class="profile-level-top">
+                <span class="profile-level-label">Current Level</span>
+                <span class="profile-level-name" id="profileLevelName">Eco Starter</span>
+              </div>
+              <div class="profile-level-value" id="profileLevelValue">1</div>
+              <div class="profile-level-track-wrap">
+                <div class="profile-level-track"><div class="profile-level-fill" id="profileLevelFill" style="width:0%"></div></div>
+                <span class="profile-level-pct" id="profileLevelPct">0%</span>
+              </div>
+              <p class="profile-next" id="profileNextText">Reduce your emissions month-over-month to level up.</p>
+            </div>
+
+            <div class="profile-stats-grid">
+              <div class="profile-stat">
+                <span class="profile-stat-label">Points</span>
+                <strong id="profilePoints">0</strong>
+              </div>
+              <div class="profile-stat">
+                <span class="profile-stat-label">Total CO2 Reduced</span>
+                <strong id="profileReducedKg">0.0 kg</strong>
+              </div>
+              <div class="profile-stat">
+                <span class="profile-stat-label">Best Monthly Reduction</span>
+                <strong id="profileBestReduction">0.0%</strong>
+              </div>
+              <div class="profile-stat">
+                <span class="profile-stat-label">Monthly Streak</span>
+                <strong id="profileStreak">0</strong>
+              </div>
+            </div>
+          </div>
+
+          <h4 class="achievements-title">Achievements</h4>
           <div class="badges-grid" id="badgesGrid">
             <div class="badge-item locked" id="badgeBeginner">
               <div class="badge-icon">🌱</div>
               <div class="badge-info">
                 <div class="badge-title">Eco Beginner</div>
-                <div class="badge-rule">Unlock when any monthly reduction is achieved</div>
+                <div class="badge-rule">Unlock after your first month-over-month reduction</div>
               </div>
               <div class="badge-state" id="badgeBeginnerState">Locked</div>
             </div>
-            <div class="badge-item locked" id="badgeProtector">
-              <div class="badge-icon">🛡️</div>
-              <div class="badge-info">
-                <div class="badge-title">Climate Protector</div>
-                <div class="badge-rule">Unlock with at least 10% month-over-month reduction</div>
-              </div>
-              <div class="badge-state" id="badgeProtectorState">Locked</div>
-            </div>
             <div class="badge-item locked" id="badgeHero">
-              <div class="badge-icon">🏆</div>
+              <div class="badge-icon">🔥</div>
               <div class="badge-info">
-                <div class="badge-title">Sustainability Hero</div>
-                <div class="badge-rule">Unlock with at least 20% month-over-month reduction</div>
+                <div class="badge-title">Climate Hero</div>
+                <div class="badge-rule">Unlock with at least 10% month-over-month reduction</div>
               </div>
               <div class="badge-state" id="badgeHeroState">Locked</div>
             </div>
+            <div class="badge-item locked" id="badgeChampion">
+              <div class="badge-icon">🏆</div>
+              <div class="badge-info">
+                <div class="badge-title">Sustainability Champion</div>
+                <div class="badge-rule">Unlock with at least 20% month-over-month reduction</div>
+              </div>
+              <div class="badge-state" id="badgeChampionState">Locked</div>
+            </div>
           </div>
-          <p class="badge-msg" id="badgeMsg">Log data across multiple months to start unlocking badges.</p>
+          <p class="badge-msg" id="badgeMsg">Log across multiple months to start earning points and achievements.</p>
+        </div>
+
+        <div class="card coach-card" id="coachCard">
+          <div class="card-hdr">
+            <div><h3 class="card-title">AI Sustainability Coach</h3><p class="card-desc">Ask anything about reducing your footprint and get activity-aware guidance</p></div>
+            <div class="coach-pill" id="coachPill">Ready</div>
+          </div>
+          <div class="coach-quick-row">
+            <button class="coach-quick-btn" data-q="How can I reduce my biggest emission source?">Top reduction idea</button>
+            <button class="coach-quick-btn" data-q="Give me a low-carbon plan for this week.">Weekly plan</button>
+            <button class="coach-quick-btn" data-q="What should I change in transport?">Transport tips</button>
+          </div>
+          <div class="coach-chat" id="coachChat" aria-live="polite"></div>
+          <div class="coach-input-row">
+            <input type="text" id="coachInput" placeholder="Ask: How can I lower my emissions this month?" maxlength="220" />
+            <button class="btn btn-primary coach-send-btn" id="coachSend">Send</button>
+          </div>
+          <p class="coach-footnote">Responses are generated from your logged activity patterns and in-app eco tips.</p>
         </div>
 
         <!-- Personalised recommendations card -->
@@ -336,6 +595,22 @@
                   <option value="train">Train / Metro</option><option value="flight_short">Short-haul Flight (&lt;3h)</option>
                   <option value="flight_long">Long-haul Flight (&gt;3h)</option><option value="bicycle">Bicycle / Walking</option>
                 </select>
+              </div>
+              <div class="smart-travel-wrap">
+                <div class="smart-travel-row">
+                  <label for="smartTravelType">Smart Travel Type</label>
+                  <select id="smartTravelType">
+                    <option value="car" selected>Car</option>
+                    <option value="bus">Bus</option>
+                    <option value="bike">Bike</option>
+                    <option value="train">Train</option>
+                  </select>
+                </div>
+                <div class="smart-travel-actions">
+                  <button type="button" class="btn btn-primary smart-travel-btn" id="startTravelTrack">Start Tracking</button>
+                  <button type="button" class="btn btn-ghost smart-travel-btn" id="stopTravelTrack">Stop Tracking</button>
+                </div>
+                <p class="smart-travel-status" id="travelTrackStatus">Geolocation inactive.</p>
               </div>
               <div class="form-group"><label for="transportDist">Distance (km)</label><input type="number" id="transportDist" min="0" step="0.1" placeholder="e.g. 25" /></div>
               <div class="form-row">
@@ -372,6 +647,52 @@
               <div class="form-row">
                 <div class="form-group"><label for="foodDate">Date</label><input type="date" id="foodDate" /></div>
                 <div class="form-group"><label for="foodNote">Note (optional)</label><input type="text" id="foodNote" placeholder="e.g. Dinner" maxlength="100" /></div>
+              </div>
+
+              <div class="food-scanner-wrap" id="foodScannerWrap">
+                <div class="food-scanner-head">
+                  <div>
+                    <h4>Food Carbon Footprint Scanner</h4>
+                    <p>Type food items or scan a receipt/label image to estimate meal emissions</p>
+                  </div>
+                  <span class="food-scan-pill" id="foodScanPill">Ready</span>
+                </div>
+
+                <div class="form-group">
+                  <label for="foodScanInput">Food Items (manual input)</label>
+                  <textarea id="foodScanInput" rows="3" placeholder="Example: beef 200g, rice 150g, vegetables 300g"></textarea>
+                </div>
+
+                <div class="food-scan-row">
+                  <input type="file" id="foodScanFile" accept="image/*" />
+                  <button type="button" class="btn btn-primary" id="foodScanBtn">Scan Food Items</button>
+                </div>
+
+                <p class="food-scan-status" id="foodScanStatus">Add food items above or upload a food label image to scan.</p>
+
+                <div class="food-scan-results" id="foodScanResults" style="display:none">
+                  <div class="food-scan-top">
+                    <div class="food-scan-metric">
+                      <span>Total Emissions</span>
+                      <strong id="foodScanTotal">0.00 kg CO2e</strong>
+                    </div>
+                    <div class="food-scan-metric">
+                      <span>Carbon Impact</span>
+                      <strong id="foodImpactLevel" class="impact-low">Low</strong>
+                    </div>
+                  </div>
+
+                  <div class="food-scan-chart-wrap">
+                    <canvas id="foodScanChart"></canvas>
+                  </div>
+
+                  <div class="food-scan-items" id="foodScanItems"></div>
+
+                  <div class="food-reco-wrap">
+                    <h5>Eco-friendly Recommendations</h5>
+                    <ul id="foodRecommendations"></ul>
+                  </div>
+                </div>
               </div>
             </div>
             <!-- Shopping -->
@@ -500,11 +821,43 @@
         <div id="reportContent"></div>
       </section>
 
+      <!-- ======= IMPACT MAP ======= -->
+      <section id="map" class="section">
+        <div class="section-header">
+          <h1>Carbon Impact Map</h1>
+          <p class="subtitle">Interactive map of where your emissions were recorded</p>
+        </div>
+        <div class="card impact-map-card">
+          <div class="impact-map-top">
+            <div class="impact-chip">
+              <span class="impact-chip-label">Mapped Activities</span>
+              <strong id="mapEntryCount">0</strong>
+            </div>
+            <div class="impact-chip">
+              <span class="impact-chip-label">Mapped Emissions</span>
+              <strong id="mapTotalCO2">0.00 kg</strong>
+            </div>
+            <div class="impact-chip">
+              <span class="impact-chip-label">Top Hotspot</span>
+              <strong id="mapTopCategory">—</strong>
+            </div>
+          </div>
+          <div class="impact-map-wrap">
+            <div id="impactMap"></div>
+            <div class="impact-map-empty" id="impactMapEmpty">No geotagged activities yet. New entries will auto-pin location when permission is granted.</div>
+          </div>
+        </div>
+      </section>
+
     </main>
   </div>
 
   <div class="toast" id="toast"></div>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.22.0/dist/tf.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
   <script src="data.js"></script>
   <script src="app.js"></script>
 </body>
