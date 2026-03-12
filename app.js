@@ -12,7 +12,9 @@ let activeCategory = 'transport';
 document.addEventListener('DOMContentLoaded', () => {
   loadFromStorage();
   setDefaultDates();
+  setGreetingDate();
   initNav();
+  initSidebarToggle();
   initCategoryTabs();
   initCalculator();
   initHistory();
@@ -110,12 +112,21 @@ function setDefaultDates() {
   });
 }
 
+function setGreetingDate() {
+  const el = document.getElementById('dashDate');
+  if (!el) return;
+  const now = new Date();
+  el.textContent = now.toLocaleDateString(undefined, {
+    weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
+  });
+}
+
 /* ─── Navigation ─────────────────────────────── */
 function initNav() {
-  document.querySelectorAll('.nav-btn').forEach(btn => {
+  document.querySelectorAll('.sidebar-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       const target = btn.dataset.section;
-      document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.sidebar-btn').forEach(b => b.classList.remove('active'));
       document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
       btn.classList.add('active');
       document.getElementById(target).classList.add('active');
@@ -132,6 +143,20 @@ function initNav() {
       renderHistory();
       showToast('All data cleared.', 'error');
     }
+  });
+
+  document.getElementById('btnLogActivity').addEventListener('click', () => {
+    document.querySelector('.sidebar-btn[data-section="calculator"]').click();
+  });
+}
+
+function initSidebarToggle() {
+  const btn     = document.getElementById('sidebarToggle');
+  const sidebar = document.getElementById('sidebar');
+  if (!btn || !sidebar) return;
+  btn.addEventListener('click', () => {
+    sidebar.classList.toggle('open');
+    sidebar.classList.toggle('collapsed');
   });
 }
 
@@ -253,44 +278,150 @@ function initPresets() {
 }
 
 /* ─── Dashboard ──────────────────────────────── */
+function calcTrend(current, previous) {
+  if (previous === 0 && current === 0) return { label: '—', cls: '' };
+  if (previous === 0) return { label: 'New ↑', cls: 'up' };
+  const pct = Math.round(((current - previous) / previous) * 100);
+  if (pct > 0)  return { label: `↑ ${pct}%`,  cls: 'up' };
+  if (pct < 0)  return { label: `↓ ${Math.abs(pct)}%`, cls: 'down' };
+  return { label: '→ 0%', cls: '' };
+}
+
+function setTrendPill(id, current, previous, compLabel) {
+  const wrap = document.getElementById(id);
+  if (!wrap) return;
+  const trend = calcTrend(current, previous);
+  const ico   = wrap.querySelector('.trend-ico');
+  const lbl   = wrap.querySelector('.trend-lbl');
+  ico.textContent = trend.label;
+  ico.className   = 'trend-ico ' + trend.cls;
+  if (lbl && compLabel) lbl.textContent = compLabel;
+}
+
+function carbonRatingLabel(kgMonth) {
+  if (kgMonth === 0)    return '—';
+  if (kgMonth < 80)     return '🌟 A+';
+  if (kgMonth < 125)    return '✅ A';
+  if (kgMonth < 166)    return '🟡 B';
+  if (kgMonth < 250)    return '🟠 C';
+  return '🔴 D';
+}
+
 function renderDashboard() {
   const now   = new Date();
+  const today = todayISO();
+
+  // ── Today ──
+  const todayEntries = entries.filter(e => e.date === today);
+  const todayTotal   = todayEntries.reduce((s, e) => s + e.co2, 0);
+
+  const yest = new Date(now);
+  yest.setDate(yest.getDate() - 1);
+  const yestISO  = yest.toISOString().split('T')[0];
+  const yestTotal = entries.filter(e => e.date === yestISO).reduce((s, e) => s + e.co2, 0);
+
+  // ── Weekly (last 7 days incl. today) ──
+  const weekStart = new Date(now);
+  weekStart.setDate(weekStart.getDate() - 6);
+  weekStart.setHours(0, 0, 0, 0);
+  const weeklyEntries = entries.filter(e => new Date(e.date + 'T00:00:00') >= weekStart);
+  const weeklyTotal   = weeklyEntries.reduce((s, e) => s + e.co2, 0);
+
+  const prevWeekStart = new Date(weekStart);
+  prevWeekStart.setDate(prevWeekStart.getDate() - 7);
+  const prevWeekEnd = new Date(weekStart);
+  prevWeekEnd.setDate(prevWeekEnd.getDate() - 1);
+  const prevWeekTotal = entries.filter(e => {
+    const d = new Date(e.date + 'T00:00:00');
+    return d >= prevWeekStart && d <= prevWeekEnd;
+  }).reduce((s, e) => s + e.co2, 0);
+
+  // ── Monthly ──
   const month = now.getMonth();
   const year  = now.getFullYear();
-
-  // Monthly entries
-  const monthly = entries.filter(e => {
+  const monthlyEntries = entries.filter(e => {
     const d = new Date(e.date + 'T00:00:00');
     return d.getMonth() === month && d.getFullYear() === year;
   });
+  const monthlyTotal = monthlyEntries.reduce((s, e) => s + e.co2, 0);
 
-  const totalMonthly = monthly.reduce((s, e) => s + e.co2, 0);
-  const totalAll     = entries.length;
+  const prevMonthDate = new Date(year, month - 1, 1);
+  const prevMonthTotal = entries.filter(e => {
+    const d = new Date(e.date + 'T00:00:00');
+    return d.getMonth() === prevMonthDate.getMonth() && d.getFullYear() === prevMonthDate.getFullYear();
+  }).reduce((s, e) => s + e.co2, 0);
 
-  // Days with data this month
-  const daysSet = new Set(monthly.map(e => e.date));
+  // ── Daily avg ──
+  const daysSet = new Set(monthlyEntries.map(e => e.date));
   const days    = daysSet.size || 1;
-  const daily   = totalMonthly / days;
+  const dailyAvg = monthlyTotal / days;
 
-  document.getElementById('totalMonthly').textContent = totalMonthly.toFixed(2);
-  document.getElementById('totalEntries').textContent = totalAll;
-  document.getElementById('treesNeeded').textContent  = treesNeeded(totalMonthly);
-  document.getElementById('dailyAvg').textContent     = daily.toFixed(2);
+  // ── Render KPI numbers ──
+  document.getElementById('todayCO2').textContent   = todayTotal.toFixed(2);
+  document.getElementById('weeklyCO2').textContent  = weeklyTotal.toFixed(2);
+  document.getElementById('monthlyCO2').textContent = monthlyTotal.toFixed(2);
 
-  // Badge
-  const badge = document.getElementById('monthBadge');
-  if (totalMonthly === 0)          { badge.textContent = 'No data'; badge.className = 'stat-badge'; }
-  else if (totalMonthly < 125)     { badge.textContent = '🎉 Below Paris Goal'; badge.className = 'stat-badge good'; }
-  else if (totalMonthly < 166)     { badge.textContent = '✅ Below World Avg'; badge.className = 'stat-badge good'; }
-  else if (totalMonthly < 250)     { badge.textContent = '⚠️ Above Avg'; badge.className = 'stat-badge warning'; }
-  else                              { badge.textContent = '🔴 High'; badge.className = 'stat-badge danger'; }
+  // ── Trend pills ──
+  setTrendPill('todayTrend',  todayTotal,   yestTotal,     'vs yesterday');
+  setTrendPill('weekTrend',   weeklyTotal,  prevWeekTotal, 'vs last week');
+  setTrendPill('monthTrend',  monthlyTotal, prevMonthTotal,'vs last month');
 
-  // Comparison bar
-  const pct = Math.min(100, (totalMonthly / 166) * 100);
-  document.getElementById('yourBar').style.width = pct + '%';
-  document.getElementById('yourVal').textContent = totalMonthly.toFixed(0) + ' kg';
+  // ── Hints ──
+  const tCount = todayEntries.length;
+  document.getElementById('todayHint').textContent  = tCount ? `${tCount} activit${tCount === 1 ? 'y' : 'ies'} today` : 'No activities logged today';
+  const wCount = weeklyEntries.length;
+  document.getElementById('weekHint').textContent   = wCount ? `${wCount} activit${wCount === 1 ? 'y' : 'ies'} this week` : 'Last 7 days';
+  const mCount = monthlyEntries.length;
+  document.getElementById('monthHint').textContent  = mCount ? `${mCount} activit${mCount === 1 ? 'y' : 'ies'} this month` : 'Current calendar month';
 
-  renderCategoryChart(monthly);
+  // ── Progress bars (% of daily/weekly/monthly safe zone) ──
+  const DAILY_GOAL   = 125 / 30;           // ~4.17 kg
+  const WEEKLY_GOAL  = 125 / 30 * 7;      // ~29.2 kg
+  const MONTHLY_GOAL = 166;               // world avg
+  document.getElementById('todayBar').style.width  = Math.min(100, (todayTotal / DAILY_GOAL) * 100).toFixed(1) + '%';
+  document.getElementById('weekBar').style.width   = Math.min(100, (weeklyTotal / WEEKLY_GOAL) * 100).toFixed(1) + '%';
+  document.getElementById('monthBar').style.width  = Math.min(100, (monthlyTotal / MONTHLY_GOAL) * 100).toFixed(1) + '%';
+
+  // ── Secondary cards ──
+  document.getElementById('totalEntries').textContent = entries.length;
+  document.getElementById('treesNeeded').textContent  = treesNeeded(monthlyTotal);
+  document.getElementById('dailyAvg').textContent     = dailyAvg.toFixed(2);
+  document.getElementById('carbonRating').textContent = carbonRatingLabel(monthlyTotal);
+
+  // ── Sidebar badge ──
+  const sb = document.getElementById('sidebarBadge');
+  if (sb) sb.textContent = entries.length;
+
+  // ── Chart month label ──
+  const monthName = now.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+  const cml = document.getElementById('chartMonthLabel');
+  if (cml) cml.textContent = monthName;
+
+  // ── Benchmark ──
+  const pct = Math.min(100, (monthlyTotal / 166) * 100);
+  document.getElementById('yourBar').style.width = pct.toFixed(1) + '%';
+  document.getElementById('yourVal').textContent = monthlyTotal.toFixed(0) + ' kg';
+
+  // Bench status pill
+  const bs = document.getElementById('benchStatus');
+  if (bs) {
+    if (monthlyTotal === 0)        { bs.textContent = 'No data yet'; bs.style.cssText = 'background:#f1f5f9;color:#94a3b8'; }
+    else if (monthlyTotal < 125)   { bs.textContent = '🎉 Below Paris Goal'; bs.style.cssText = 'background:#d1fae5;color:#065f46'; }
+    else if (monthlyTotal < 166)   { bs.textContent = '✅ Below World Avg'; bs.style.cssText = 'background:#dcfce7;color:#166534'; }
+    else if (monthlyTotal < 250)   { bs.textContent = '⚠️ Above Average'; bs.style.cssText = 'background:#fef9c3;color:#854d0e'; }
+    else                           { bs.textContent = '🔴 High Emissions'; bs.style.cssText = 'background:#fee2e2;color:#991b1b'; }
+    bs.style.cssText += ';font-size:.72rem;font-weight:600;padding:4px 12px;border-radius:99px;';
+  }
+
+  // ── Trend badge on timeline ──
+  const tb = document.getElementById('trendBadge');
+  if (tb) { tb.textContent = monthlyTotal > 0 ? monthlyTotal.toFixed(1) + ' kg this month' : ''; }
+
+  // ── Total badge on donut ──
+  const tmb = document.getElementById('totalMonthlyBadge');
+  if (tmb) { tmb.textContent = monthlyTotal > 0 ? monthlyTotal.toFixed(1) + ' kg' : ''; }
+
+  renderCategoryChart(monthlyEntries);
   renderTimelineChart();
 }
 
@@ -344,7 +475,7 @@ function renderCategoryChart(monthly) {
   ctx.fill();
 
   // Center text
-  ctx.fillStyle = '#166534';
+  ctx.fillStyle = '#0f172a';
   ctx.font = `bold ${Math.round(R * 0.3)}px Inter, sans-serif`;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
@@ -535,7 +666,6 @@ function renderHistory() {
     btn.addEventListener('click', (ev) => {
       ev.stopPropagation();
       const id = btn.dataset.id;
-      // Validate ID before using
       if (!id || !/^[a-z0-9]+$/.test(id)) return;
       entries = entries.filter(e => e.id !== id);
       saveToStorage();
@@ -544,6 +674,10 @@ function renderHistory() {
       showToast('Entry deleted.');
     });
   });
+
+  // keep sidebar badge in sync when on history page
+  const sb = document.getElementById('sidebarBadge');
+  if (sb) sb.textContent = entries.length;
 }
 
 function formatTypeLabel(category, type) {
@@ -598,8 +732,8 @@ function renderTips(filter) {
       <div class="tip-card" data-cat="${sanitizeText(t.cat)}">
         <div class="tip-header">
           <span class="tip-emoji">${t.emoji}</span>
-          <div class="tip-meta">
-            <span class="tip-category">${sanitizeText(meta.label || t.cat)}</span>
+          <div>
+            <span class="tip-cat-badge">${sanitizeText(meta.label || t.cat)}</span>
             <div class="tip-title">${sanitizeText(t.title)}</div>
           </div>
         </div>
