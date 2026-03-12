@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Smart Carbon Tracker</title>
+  <link rel="stylesheet" href="style.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+</head>
+<body>
+  <!-- Header -->
+  <header class="header">
+    <div class="header-inner">
+      <div class="logo">
+        <span class="logo-icon">🌿</span>
+        <span class="logo-text">SmartCarbon<strong>Tracker</strong></span>
+      </div>
+      <nav class="nav">
+        <button class="nav-btn active" data-section="dashboard">Dashboard</button>
+        <button class="nav-btn" data-section="calculator">Calculator</button>
+        <button class="nav-btn" data-section="history">History</button>
+        <button class="nav-btn" data-section="tips">Eco Tips</button>
+      </nav>
+      <div class="header-actions">
+        <button class="btn-reset" id="resetAll" title="Reset all data">Reset</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="main">
+    <!-- ===== DASHBOARD SECTION ===== -->
+    <section id="dashboard" class="section active">
+      <div class="section-header">
+        <h1>Your Carbon Dashboard</h1>
+        <p class="subtitle">Track, understand, and reduce your carbon footprint</p>
+      </div>
+
+      <!-- Summary Cards -->
+      <div class="stats-grid">
+        <div class="stat-card stat-card--primary">
+          <div class="stat-icon">🌍</div>
+          <div class="stat-info">
+            <span class="stat-label">Total CO₂ This Month</span>
+            <span class="stat-value" id="totalMonthly">0.00</span>
+            <span class="stat-unit">kg CO₂e</span>
+          </div>
+          <div class="stat-badge" id="monthBadge">No data</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon">📅</div>
+          <div class="stat-info">
+            <span class="stat-label">Entries Logged</span>
+            <span class="stat-value" id="totalEntries">0</span>
+            <span class="stat-unit">activities</span>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon">🌲</div>
+          <div class="stat-info">
+            <span class="stat-label">Trees Needed to Offset</span>
+            <span class="stat-value" id="treesNeeded">0</span>
+            <span class="stat-unit">trees / year</span>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon">⚡</div>
+          <div class="stat-info">
+            <span class="stat-label">Daily Average</span>
+            <span class="stat-value" id="dailyAvg">0.00</span>
+            <span class="stat-unit">kg CO₂e / day</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Charts Row -->
+      <div class="charts-row">
+        <div class="card chart-card">
+          <h3 class="card-title">Emissions by Category</h3>
+          <div class="chart-container">
+            <canvas id="categoryChart"></canvas>
+            <div class="chart-legend" id="categoryLegend"></div>
+          </div>
+          <div class="empty-state" id="categoryEmpty">
+            <span>📊</span>
+            <p>Add activities to see breakdown</p>
+          </div>
+        </div>
+        <div class="card chart-card">
+          <h3 class="card-title">Emissions Over Time</h3>
+          <div class="chart-container">
+            <canvas id="timelineChart"></canvas>
+          </div>
+          <div class="empty-state" id="timelineEmpty">
+            <span>📈</span>
+            <p>Log activities to view your trend</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Global Comparison Bar -->
+      <div class="card comparison-card">
+        <h3 class="card-title">Global Comparison</h3>
+        <div class="comparison-grid">
+          <div class="comparison-item">
+            <span class="comparison-label">Your Monthly Total</span>
+            <div class="progress-bar-wrap">
+              <div class="progress-bar" id="yourBar" style="width:0%"></div>
+            </div>
+            <span class="comparison-val" id="yourVal">0 kg</span>
+          </div>
+          <div class="comparison-item">
+            <span class="comparison-label">World Average (166 kg/mo)</span>
+            <div class="progress-bar-wrap">
+              <div class="progress-bar progress-bar--world" style="width:100%"></div>
+            </div>
+            <span class="comparison-val">166 kg</span>
+          </div>
+          <div class="comparison-item">
+            <span class="comparison-label">Paris Goal (125 kg/mo)</span>
+            <div class="progress-bar-wrap">
+              <div class="progress-bar progress-bar--paris" style="width:75%"></div>
+            </div>
+            <span class="comparison-val">125 kg</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== CALCULATOR SECTION ===== -->
+    <section id="calculator" class="section">
+      <div class="section-header">
+        <h1>Carbon Calculator</h1>
+        <p class="subtitle">Log your daily activities and calculate their CO₂ impact</p>
+      </div>
+
+      <div class="calc-layout">
+        <!-- Form -->
+        <div class="card calc-card">
+          <div class="category-tabs" id="categoryTabs">
+            <button class="tab-btn active" data-cat="transport">🚗 Transport</button>
+            <button class="tab-btn" data-cat="energy">⚡ Energy</button>
+            <button class="tab-btn" data-cat="food">🍽️ Food</button>
+            <button class="tab-btn" data-cat="shopping">🛍️ Shopping</button>
+            <button class="tab-btn" data-cat="waste">🗑️ Waste</button>
+          </div>
+
+          <!-- Transport Panel -->
+          <div class="panel active" id="panel-transport">
+            <div class="form-group">
+              <label for="transportType">Mode of Transport</label>
+              <select id="transportType">
+                <option value="car_petrol">Car (Petrol)</option>
+                <option value="car_diesel">Car (Diesel)</option>
+                <option value="car_electric">Car (Electric)</option>
+                <option value="car_hybrid">Car (Hybrid)</option>
+                <option value="motorcycle">Motorcycle</option>
+                <option value="bus">Bus</option>
+                <option value="train">Train / Metro</option>
+                <option value="flight_short">Short-haul Flight (&lt;3h)</option>
+                <option value="flight_long">Long-haul Flight (&gt;3h)</option>
+                <option value="bicycle">Bicycle / Walking</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="transportDist">Distance (km)</label>
+              <input type="number" id="transportDist" min="0" step="0.1" placeholder="e.g. 25" />
+            </div>
+            <div class="form-group">
+              <label for="transportDate">Date</label>
+              <input type="date" id="transportDate" />
+            </div>
+            <div class="form-group">
+              <label for="transportNote">Note (optional)</label>
+              <input type="text" id="transportNote" placeholder="e.g. Commute to work" maxlength="100" />
+            </div>
+          </div>
+
+          <!-- Energy Panel -->
+          <div class="panel" id="panel-energy">
+            <div class="form-group">
+              <label for="energyType">Energy Source</label>
+              <select id="energyType">
+                <option value="electricity_grid">Grid Electricity</option>
+                <option value="electricity_solar">Solar Electricity</option>
+                <option value="natural_gas">Natural Gas</option>
+                <option value="heating_oil">Heating Oil</option>
+                <option value="coal">Coal</option>
+                <option value="lpg">LPG / Propane</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="energyAmount">Amount (kWh)</label>
+              <input type="number" id="energyAmount" min="0" step="0.1" placeholder="e.g. 30" />
+            </div>
+            <div class="form-group">
+              <label for="energyDate">Date</label>
+              <input type="date" id="energyDate" />
+            </div>
+            <div class="form-group">
+              <label for="energyNote">Note (optional)</label>
+              <input type="text" id="energyNote" placeholder="e.g. Monthly electricity bill" maxlength="100" />
+            </div>
+          </div>
+
+          <!-- Food Panel -->
+          <div class="panel" id="panel-food">
+            <div class="form-group">
+              <label for="foodType">Food Type</label>
+              <select id="foodType">
+                <option value="beef">Beef</option>
+                <option value="lamb">Lamb / Mutton</option>
+                <option value="pork">Pork</option>
+                <option value="chicken">Chicken</option>
+                <option value="fish">Fish / Seafood</option>
+                <option value="dairy">Dairy (Milk/Cheese)</option>
+                <option value="eggs">Eggs</option>
+                <option value="vegetables">Vegetables</option>
+                <option value="fruits">Fruits</option>
+                <option value="grains">Grains / Rice</option>
+                <option value="legumes">Legumes / Lentils</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="foodAmount">Amount (kg)</label>
+              <input type="number" id="foodAmount" min="0" step="0.01" placeholder="e.g. 0.5" />
+            </div>
+            <div class="form-group">
+              <label for="foodDate">Date</label>
+              <input type="date" id="foodDate" />
+            </div>
+            <div class="form-group">
+              <label for="foodNote">Note (optional)</label>
+              <input type="text" id="foodNote" placeholder="e.g. Dinner" maxlength="100" />
+            </div>
+          </div>
+
+          <!-- Shopping Panel -->
+          <div class="panel" id="panel-shopping">
+            <div class="form-group">
+              <label for="shoppingType">Item Category</label>
+              <select id="shoppingType">
+                <option value="clothing">Clothing / Textiles</option>
+                <option value="electronics">Electronics</option>
+                <option value="furniture">Furniture</option>
+                <option value="books_paper">Books / Paper</option>
+                <option value="plastic_goods">Plastic Goods</option>
+                <option value="metal_goods">Metal Goods</option>
+                <option value="online_delivery">Online Delivery (per parcel)</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="shoppingAmount">Spend (USD $)</label>
+              <input type="number" id="shoppingAmount" min="0" step="1" placeholder="e.g. 50" />
+            </div>
+            <div class="form-group">
+              <label for="shoppingDate">Date</label>
+              <input type="date" id="shoppingDate" />
+            </div>
+            <div class="form-group">
+              <label for="shoppingNote">Note (optional)</label>
+              <input type="text" id="shoppingNote" placeholder="e.g. New jacket" maxlength="100" />
+            </div>
+          </div>
+
+          <!-- Waste Panel -->
+          <div class="panel" id="panel-waste">
+            <div class="form-group">
+              <label for="wasteType">Waste Type</label>
+              <select id="wasteType">
+                <option value="general_waste">General Waste (landfill)</option>
+                <option value="recycling">Recycling</option>
+                <option value="composting">Composting</option>
+                <option value="food_waste">Food Waste</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="wasteAmount">Amount (kg)</label>
+              <input type="number" id="wasteAmount" min="0" step="0.1" placeholder="e.g. 2" />
+            </div>
+            <div class="form-group">
+              <label for="wasteDate">Date</label>
+              <input type="date" id="wasteDate" />
+            </div>
+            <div class="form-group">
+              <label for="wasteNote">Note (optional)</label>
+              <input type="text" id="wasteNote" placeholder="e.g. Weekly bin" maxlength="100" />
+            </div>
+          </div>
+
+          <!-- Result Preview -->
+          <div class="result-preview" id="resultPreview">
+            <div class="result-co2">
+              <span class="result-label">Estimated CO₂</span>
+              <span class="result-value" id="previewCO2">0.00 kg CO₂e</span>
+            </div>
+            <div class="result-equiv" id="resultEquiv"></div>
+          </div>
+
+          <div class="form-actions">
+            <button class="btn btn-primary" id="addEntry">➕ Add to Log</button>
+            <button class="btn btn-secondary" id="calcOnly">🔢 Calculate Only</button>
+          </div>
+        </div>
+
+        <!-- Quick Add Presets -->
+        <div class="card presets-card">
+          <h3 class="card-title">⚡ Quick Add Presets</h3>
+          <p class="card-subtitle">Common daily activities</p>
+          <div class="presets-list" id="presetsList"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== HISTORY SECTION ===== -->
+    <section id="history" class="section">
+      <div class="section-header">
+        <h1>Activity History</h1>
+        <p class="subtitle">All your logged carbon activities</p>
+      </div>
+
+      <div class="card">
+        <div class="history-toolbar">
+          <div class="history-filters">
+            <select id="filterCategory">
+              <option value="all">All Categories</option>
+              <option value="transport">Transport</option>
+              <option value="energy">Energy</option>
+              <option value="food">Food</option>
+              <option value="shopping">Shopping</option>
+              <option value="waste">Waste</option>
+            </select>
+            <select id="filterPeriod">
+              <option value="all">All Time</option>
+              <option value="today">Today</option>
+              <option value="week">This Week</option>
+              <option value="month">This Month</option>
+            </select>
+            <input type="text" id="searchHistory" placeholder="🔍 Search entries..." />
+          </div>
+          <div class="history-summary">
+            <span id="historyCount">0 entries</span>
+            <span class="separator">|</span>
+            <span id="historyTotal">0.00 kg CO₂e</span>
+          </div>
+        </div>
+
+        <div class="history-list" id="historyList">
+          <div class="empty-state">
+            <span>📝</span>
+            <p>No activities logged yet. Start by adding entries in the Calculator.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== ECO TIPS SECTION ===== -->
+    <section id="tips" class="section">
+      <div class="section-header">
+        <h1>Eco Tips & Actions</h1>
+        <p class="subtitle">Practical ways to reduce your carbon footprint</p>
+      </div>
+
+      <div class="tips-filter">
+        <button class="filter-btn active" data-filter="all">All</button>
+        <button class="filter-btn" data-filter="transport">🚗 Transport</button>
+        <button class="filter-btn" data-filter="energy">⚡ Energy</button>
+        <button class="filter-btn" data-filter="food">🍽️ Food</button>
+        <button class="filter-btn" data-filter="shopping">🛍️ Shopping</button>
+        <button class="filter-btn" data-filter="waste">🗑️ Waste</button>
+      </div>
+
+      <div class="tips-grid" id="tipsGrid"></div>
+    </section>
+  </main>
+
+  <!-- Toast Notification -->
+  <div class="toast" id="toast"></div>
+
+  <script src="data.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
