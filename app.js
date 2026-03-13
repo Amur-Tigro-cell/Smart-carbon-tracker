@@ -80,7 +80,6 @@ document.addEventListener('DOMContentLoaded', () => {
   initReport();
   initImpactMap();
   initCoach();
-  initQuickScanner();
   initLoadAnimations();
   renderDashboard();
   renderHistory();
