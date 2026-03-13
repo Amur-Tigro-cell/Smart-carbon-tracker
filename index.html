@@ -7,7 +7,8 @@
   <link rel="stylesheet" href="style.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Poppins:wght@500;600;700;800&display=swap" rel="stylesheet" />
 </head>
 <body>
 
@@ -85,15 +86,23 @@
       <!-- ======= DASHBOARD ======= -->
       <section id="dashboard" class="section active">
 
-        <div class="dash-header">
-          <div>
-            <h1 class="dash-title">Carbon Dashboard</h1>
-            <p class="dash-sub" id="dashDate">Loading…</p>
+        <div class="hero-section">
+          <div class="hero-content">
+            <p class="hero-eyebrow">Smart Carbon Tracker</p>
+            <h1 class="hero-title">Track Your Carbon Footprint and Build Greener Daily Habits</h1>
+            <p class="hero-desc">Monitor transport, electricity, food, and lifestyle emissions in one clean analytics dashboard and discover practical ways to lower your impact.</p>
+            <div class="hero-actions">
+              <button class="btn-cta hero-cta" id="btnLogActivity">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="14" height="14"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                Start Tracking
+              </button>
+            </div>
+            <p class="hero-date" id="dashDate">Loading…</p>
           </div>
-          <button class="btn-cta" id="btnLogActivity">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="14" height="14"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-            Log Activity
-          </button>
+          <div class="hero-cue-card">
+            <div class="hero-cue-title">Why it matters</div>
+            <p class="hero-cue-text">Small daily improvements in energy, transport, and food can create meaningful long-term climate impact.</p>
+          </div>
         </div>
 
         <!-- 3 Primary KPI Cards -->
@@ -133,7 +142,7 @@
               <div class="kpi-trend" id="monthTrend"><span class="trend-ico">–</span><span class="trend-lbl">vs last month</span></div>
             </div>
             <div class="kpi-body"><span class="kpi-num" id="monthlyCO2">0.00</span><span class="kpi-unit">kg CO₂e</span></div>
-            <div class="kpi-label">Monthly Emissions</div>
+            <div class="kpi-label"><i data-lucide="cloud" class="inline-lucide"></i> Monthly Emissions</div>
             <p class="kpi-hint" id="monthHint">Current calendar month</p>
             <div class="kpi-progress"><div class="kpi-pf kpi-pf--month" id="monthBar" style="width:0%"></div></div>
           </div>
@@ -165,6 +174,48 @@
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" width="20" height="20"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>
             </div>
             <div class="sec-info"><span class="sec-val" id="carbonRating">—</span><span class="sec-lbl">Carbon Rating</span></div>
+          </div>
+        </div>
+
+        <div class="emission-category-grid" id="emissionCategoryGrid">
+          <div class="emission-cat-card">
+            <div class="emission-cat-top">
+              <span class="emission-cat-icon"><i data-lucide="car" class="cat-lucide"></i></span>
+              <span class="emission-cat-label">Transport</span>
+            </div>
+            <div class="emission-cat-value" id="catTransportValue">0.00 kg</div>
+            <div class="emission-cat-meta" id="catTransportMeta">0% of monthly emissions</div>
+            <div class="emission-cat-track"><div class="emission-cat-fill" id="catTransportFill" style="width:0%"></div></div>
+          </div>
+
+          <div class="emission-cat-card">
+            <div class="emission-cat-top">
+              <span class="emission-cat-icon"><i data-lucide="zap" class="cat-lucide"></i></span>
+              <span class="emission-cat-label">Electricity</span>
+            </div>
+            <div class="emission-cat-value" id="catElectricityValue">0.00 kg</div>
+            <div class="emission-cat-meta" id="catElectricityMeta">0% of monthly emissions</div>
+            <div class="emission-cat-track"><div class="emission-cat-fill" id="catElectricityFill" style="width:0%"></div></div>
+          </div>
+
+          <div class="emission-cat-card">
+            <div class="emission-cat-top">
+              <span class="emission-cat-icon"><i data-lucide="utensils" class="cat-lucide"></i></span>
+              <span class="emission-cat-label">Food</span>
+            </div>
+            <div class="emission-cat-value" id="catFoodValue">0.00 kg</div>
+            <div class="emission-cat-meta" id="catFoodMeta">0% of monthly emissions</div>
+            <div class="emission-cat-track"><div class="emission-cat-fill" id="catFoodFill" style="width:0%"></div></div>
+          </div>
+
+          <div class="emission-cat-card">
+            <div class="emission-cat-top">
+              <span class="emission-cat-icon"><i data-lucide="layers" class="cat-lucide"></i></span>
+              <span class="emission-cat-label">Other</span>
+            </div>
+            <div class="emission-cat-value" id="catOtherValue">0.00 kg</div>
+            <div class="emission-cat-meta" id="catOtherMeta">0% of monthly emissions</div>
+            <div class="emission-cat-track"><div class="emission-cat-fill" id="catOtherFill" style="width:0%"></div></div>
           </div>
         </div>
 
@@ -208,6 +259,15 @@
             <button class="goal-preset-btn" data-val="150">150 kg</button>
           </div>
           <div class="goal-progress-section" id="goalProgressSection" style="display:none">
+            <div class="goal-visual-row">
+              <div class="goal-ring" id="goalRing" style="background:conic-gradient(#10b981 0deg,#e2e8f0 0deg 360deg)">
+                <div class="goal-ring-inner">
+                  <span class="goal-ring-value" id="goalRingPct">0%</span>
+                  <span class="goal-ring-sub">of goal used</span>
+                </div>
+              </div>
+              <div class="goal-visual-copy" id="goalVisualCopy">You are at 0% of your monthly goal.</div>
+            </div>
             <div class="goal-bar-row">
               <div class="goal-track"><div class="goal-fill" id="goalFill" style="width:0%"></div></div>
               <span class="goal-pct" id="goalPct">0%</span>
@@ -291,7 +351,7 @@
           </div>
           <div class="card chart-card">
             <div class="card-hdr">
-              <div><h3 class="card-title">30-Day Trend</h3><p class="card-desc">Daily CO₂e over the last 30 days</p></div>
+              <div><h3 class="card-title">Weekly Carbon Trend</h3><p class="card-desc">Daily CO₂e over the last 7 days</p></div>
               <div class="card-badge-pill" id="trendBadge"></div>
             </div>
             <div class="chart-wrap timeline-wrap">
@@ -299,7 +359,7 @@
             </div>
             <div class="empty-state" id="timelineEmpty">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="36" height="36"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
-              <p>Log activities to view your emissions trend</p>
+              <p>Log activities to view your weekly carbon trend</p>
             </div>
           </div>
         </div>
@@ -856,9 +916,15 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.22.0/dist/tf.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
   <script src="data.js"></script>
+  <script src="modules/goals.js"></script>
+  <script src="modules/charts.js"></script>
+  <script src="modules/ocr.js"></script>
+  <script src="modules/dashboard.js"></script>
+  <script src="modules/reports.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
