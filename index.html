@@ -9,8 +9,82 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Poppins:wght@500;600;700;800&display=swap" rel="stylesheet" />
+  <script>
+    (function () {
+      try {
+        var raw = localStorage.getItem('sct_user_session');
+        var session = raw ? JSON.parse(raw) : null;
+        var state = session && session.email ? 'logged-in' : 'logged-out';
+        document.documentElement.setAttribute('data-auth-boot', state);
+      } catch (e) {
+        document.documentElement.setAttribute('data-auth-boot', 'logged-out');
+      }
+    })();
+  </script>
 </head>
 <body>
+
+  <section class="auth-gateway" id="authGateway">
+    <div class="auth-gateway-panel">
+      <h1 class="auth-login-title">Login to Your Account</h1>
+
+      <div class="auth-login-layout">
+        <div class="auth-left-col">
+          <form id="authForm" class="auth-form" novalidate>
+            <div class="form-group" id="authNameGroup">
+              <label for="authName">Full Name</label>
+              <input type="text" id="authName" placeholder="Enter your full name" maxlength="60" />
+            </div>
+            <div class="form-group">
+              <label for="authEmail">Username / Email</label>
+              <input type="email" id="authEmail" placeholder="username" maxlength="120" required />
+            </div>
+            <div class="form-group">
+              <label for="authPassword">Password</label>
+              <input type="password" id="authPassword" placeholder="password" minlength="6" required />
+            </div>
+            <div class="form-group" id="authConfirmGroup">
+              <label for="authConfirmPassword">Confirm Password</label>
+              <input type="password" id="authConfirmPassword" placeholder="confirm password" minlength="6" />
+            </div>
+
+            <div class="auth-meta-row">
+              <label class="auth-remember-lite">
+                <input type="checkbox" id="authRememberLite" />
+                <span>Remember me</span>
+              </label>
+              <button type="button" class="auth-forgot-btn" id="authForgotBtn">Forgot Password?</button>
+            </div>
+
+            <button type="submit" class="btn btn-primary auth-submit-btn" id="authSubmitBtn">Login</button>
+          </form>
+
+          <div class="auth-switch" role="tablist" aria-label="Authentication mode">
+            <button class="auth-switch-btn active" id="loginModeBtn" data-auth-mode="login" role="tab" aria-selected="true">Login</button>
+            <button class="auth-switch-btn" id="registerModeBtn" data-auth-mode="register" role="tab" aria-selected="false">Register</button>
+          </div>
+        </div>
+
+        <div class="auth-right-col">
+          <img class="auth-qr-preview" id="authQrPreview" src="https://api.qrserver.com/v1/create-qr-code/?size=128x128&data=%7B%22name%22%3A%22Your%20Name%22%2C%22email%22%3A%22you%40example.com%22%7D" alt="Account join QR" />
+          <button class="btn btn-primary auth-scan-cta" id="scanJoinBtn" type="button">Scan QR Code</button>
+          <button class="btn btn-ghost auth-google-btn" id="googleJoinBtn" type="button">Join with Google</button>
+        </div>
+      </div>
+
+      <div class="auth-scan-wrap" id="authScanWrap" hidden>
+        <p class="auth-scan-note" id="authScanStatus">Start camera and scan a QR with your name/email details.</p>
+        <div class="auth-scan-controls">
+          <button class="btn btn-primary" id="authScanStart" type="button">Start Camera</button>
+          <button class="btn btn-ghost" id="authScanStop" type="button">Stop</button>
+          <input type="file" id="authScanFile" accept="image/*" />
+        </div>
+        <div class="auth-scan-video-wrap">
+          <video id="authScannerVideo" playsinline muted></video>
+        </div>
+      </div>
+    </div>
+  </section>
 
   <!-- TOPBAR -->
   <header class="topbar">
@@ -32,11 +106,16 @@
         <span id="themeToggleIcon">🌙</span>
         <span id="themeToggleText">Dark</span>
       </button>
+      <span class="auth-status" id="authStatus">Guest</span>
+      <button class="topbar-btn topbar-auth-btn" id="userAuthBtn" title="Login or logout">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+        <span id="userAuthBtnText">Login</span>
+      </button>
       <button class="topbar-btn" id="resetAll" title="Reset all data">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4.64"/></svg>
         Reset
       </button>
-      <div class="topbar-avatar">EC</div>
+      <div class="topbar-avatar" id="topbarAvatar" title="Guest profile">GT</div>
     </div>
   </header>
 
@@ -607,6 +686,42 @@
           <p class="badge-msg" id="badgeMsg">Log across multiple months to start earning points and achievements.</p>
         </div>
 
+        <div class="card user-auth-card" id="userAuthCard">
+          <div class="card-hdr">
+            <div><h3 class="card-title">User Login Details</h3><p class="card-desc">Stored profile and recent login history</p></div>
+            <div class="auth-pill" id="authCardPill">Guest</div>
+          </div>
+          <div class="auth-profile-grid">
+            <div class="auth-profile-item"><span>Name</span><strong id="authProfileName">Guest User</strong></div>
+            <div class="auth-profile-item"><span>Email</span><strong id="authProfileEmail">Not logged in</strong></div>
+            <div class="auth-profile-item"><span>Last Login</span><strong id="authLastLogin">--</strong></div>
+            <div class="auth-profile-item"><span>Session</span><strong id="authSessionPolicy">Manual logout only</strong></div>
+          </div>
+          <div class="auth-log-top">
+            <h4>Login Logs</h4>
+            <button class="btn btn-ghost" id="clearLoginLogs">Clear Logs</button>
+          </div>
+          <div class="auth-log-list" id="loginLogList"></div>
+        </div>
+
+        <div class="card quick-scanner-card" id="quickScannerCard">
+          <div class="card-hdr">
+            <div><h3 class="card-title">Quick Scanner</h3><p class="card-desc">Scan QR and barcode data, then save scan logs</p></div>
+            <div class="scan-pill" id="quickScanPill">Idle</div>
+          </div>
+          <div class="quick-scan-controls">
+            <button class="btn btn-primary" id="startQuickScan">Start Camera Scan</button>
+            <button class="btn btn-ghost" id="stopQuickScan">Stop</button>
+            <input type="file" id="quickScanFile" accept="image/*" />
+          </div>
+          <p class="quick-scan-status" id="quickScanStatus">Start camera scan or upload an image to detect QR/barcode content.</p>
+          <div class="quick-scan-video-wrap">
+            <video id="quickScannerVideo" playsinline muted></video>
+          </div>
+          <div class="quick-scan-result" id="quickScanResult">No scan result yet.</div>
+          <div class="quick-scan-history" id="quickScanHistory"></div>
+        </div>
+
         <div class="card coach-card" id="coachCard">
           <div class="card-hdr">
             <div><h3 class="card-title">AI Sustainability Coach</h3><p class="card-desc">Ask anything about reducing your footprint and get activity-aware guidance</p></div>
@@ -913,6 +1028,8 @@
   </div>
 
   <div class="toast" id="toast"></div>
+  <div class="auth-debug-badge" id="authDebugBadge" hidden>auth: unknown</div>
+
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.22.0/dist/tf.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
@@ -925,6 +1042,7 @@
   <script src="modules/ocr.js"></script>
   <script src="modules/dashboard.js"></script>
   <script src="modules/reports.js"></script>
+  <script src="modules/auth-scanner.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

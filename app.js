@@ -57,6 +57,7 @@ const OFFSET_OPTIONS = {
 /* ─── Init ───────────────────────────────────── */
 document.addEventListener('DOMContentLoaded', () => {
   initTheme();
+  initUserAuth();
   loadFromStorage();
   loadGoalFromStorage();
   loadOffsetFromStorage();
@@ -79,6 +80,7 @@ document.addEventListener('DOMContentLoaded', () => {
   initReport();
   initImpactMap();
   initCoach();
+  initQuickScanner();
   initLoadAnimations();
   renderDashboard();
   renderHistory();
